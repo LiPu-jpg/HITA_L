@@ -387,7 +387,7 @@
     <string name="exam_type_all">全部</string>
     <string name="exam_type_midterm">期中</string>
     <string name="exam_type_final">期末</string>
-    <string name="exam_memo_hint">暂无官方考试接口，本页可作为考试备忘录使用</string>
+    <string name="exam_memo_hint">暂无官方考试接口，本页可作为考试备忘录使用，点击此处可新增</string>
     <string name="exam_memo_add_title">新增考试备忘</string>
     <string name="exam_memo_add_confirm">保存</string>
     <string name="exam_memo_add_cancel">取消</string>
