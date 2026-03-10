@@ -57,7 +57,6 @@
             android:launchMode="singleTop" />
         <activity android:name=".ui.timetable.manager.TimetableManagerActivity" />
         <activity android:name=".ui.subject.SubjectActivity" />
-        <activity android:name=".ui.welcome.WelcomeActivity" />
         <activity android:name=".ui.myprofile.MyProfileActivity" />
         <activity android:name=".ui.timetable.detail.TimetableDetailActivity" />
         <activity
@@ -96,6 +95,11 @@
         <activity android:name=".ui.about.ActivityAbout" />
         <activity android:name=".ui.news.lecture.ActivityLecture" />
         <activity android:name=".ui.news.NewsDetailActivity" />
+        <activity android:name=".ui.resource.InternalWebActivity" />
+        <activity android:name=".ui.resource.CourseResourceSearchActivity" />
+        <activity android:name=".ui.resource.CourseReadmeActivity" />
+        <activity android:name=".ui.resource.CourseContributionActivity" />
+        <activity android:name=".ui.snatch.CourseSnatchActivity" />
     </application>
 
 </manifest>

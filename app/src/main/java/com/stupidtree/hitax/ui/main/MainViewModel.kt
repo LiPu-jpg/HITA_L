@@ -7,8 +7,10 @@ import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.switchMap
 import com.stupidtree.component.data.DataState
 import com.stupidtree.component.data.Trigger
+import com.stupidtree.hitax.BuildConfig
 import com.stupidtree.hitax.data.repository.EASRepository
 import com.stupidtree.hitax.utils.LiveDataUtils
+import com.stupidtree.stupiduser.data.model.CheckUpdateResult
 import com.stupidtree.stupiduser.data.model.UserLocal
 import com.stupidtree.stupiduser.data.repository.LocalUserRepository
 import com.stupidtree.stupiduser.data.repository.ManagerRepository
@@ -32,6 +34,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val checkUpdateTrigger = MutableLiveData<Long>()
     val checkUpdateResult = checkUpdateTrigger.switchMap{
+        buildLocalUpdateResult(it)?.let { local ->
+            return@switchMap LiveDataUtils.getMutableLiveData(local)
+        }
         if (localUserRepository.getLoggedInUser().isValid()) {
             return@switchMap managerRepository.checkUpdate(
                 localUserRepository.getLoggedInUser().token!!,
@@ -51,5 +56,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun checkForUpdate(versionCode: Long) {
         checkUpdateTrigger.value = versionCode
+    }
+
+    private fun buildLocalUpdateResult(currentCode: Long): DataState<CheckUpdateResult>? {
+        val url = BuildConfig.UPDATE_URL.trim()
+        if (url.isBlank()) return null
+        val result = CheckUpdateResult().apply {
+            latestVersionCode = BuildConfig.UPDATE_VERSION_CODE
+            latestVersionName = BuildConfig.UPDATE_VERSION_NAME
+            latestUrl = url
+            updateLog = BuildConfig.UPDATE_LOG
+            shouldUpdate = latestVersionCode > currentCode
+        }
+        return DataState(result)
     }
 }

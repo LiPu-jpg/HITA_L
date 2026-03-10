@@ -1,7 +1,6 @@
 package com.stupidtree.hitax.data.source.web.eas
 
 import android.annotation.SuppressLint
-import android.text.TextUtils
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import com.stupidtree.component.data.DataState
@@ -9,6 +8,8 @@ import com.stupidtree.hitax.data.model.eas.CourseItem
 import com.stupidtree.hitax.data.model.eas.CourseScoreItem
 import com.stupidtree.hitax.data.model.eas.EASToken
 import com.stupidtree.hitax.data.model.eas.ExamItem
+import com.stupidtree.hitax.data.model.eas.ScoreQueryResult
+import com.stupidtree.hitax.data.model.eas.ScoreSummary
 import com.stupidtree.hitax.data.model.eas.TermItem
 import com.stupidtree.hitax.data.model.timetable.TermSubject
 import com.stupidtree.hitax.data.model.timetable.TimeInDay
@@ -17,27 +18,96 @@ import com.stupidtree.hitax.data.source.web.service.EASService
 import com.stupidtree.hitax.ui.eas.classroom.BuildingItem
 import com.stupidtree.hitax.ui.eas.classroom.ClassroomItem
 import com.stupidtree.hitax.utils.JsonUtils
-import com.stupidtree.hitax.utils.TextTools
-import org.json.JSONArray
+import com.stupidtree.hitax.utils.CourseCodeUtils
 import org.json.JSONObject
 import org.jsoup.Connection
 import org.jsoup.Jsoup
-import org.jsoup.nodes.Document
-import java.io.IOException
-import java.net.URI
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
 
+/**
+ * 教务系统 API 数据源 —— 新版接口 (mjw.hitsz.edu.cn/incoSpringBoot)
+ *
+ * 认证方式：
+ *  - 登录三步之前用 Basic Auth = "Basic aW5jb246MTIzNDU="
+ *  - 登录成功后所有请求用 Authorization: bearer <access_token>
+ *  - route / JSESSIONID cookie 由 Jsoup session 维护；每次新建请求时手动注入已保存的 cookies
+ */
 class EASource internal constructor() : EASService {
-    private val defaultRequestHeader: MutableMap<String, String>
-    private val timeout = 5000
-    private val hostName = "http://jw.hitsz.edu.cn"
 
+    private val hostName = "https://mjw.hitsz.edu.cn/incoSpringBoot"
+    private val basicAuth = "Basic aW5jb246MTIzNDU="
+    private val timeout = 15000
 
-    /**
-     * 登录
-     */
+    // ---------------------------------------------------------------- 公共头
+    private fun baseHeaders(authorization: String, rolecode: String = "06"): Map<String, String> =
+        mapOf(
+            "authorization" to authorization,
+            "rolecode" to rolecode,
+            "_lang" to "cn",
+            "Accept" to "*/*",
+            "Connection" to "keep-alive",
+            "User-Agent" to "Mozilla/5.0 (Linux; Android 15; V2183A Build/AP3A.240905.015.A2; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/144.0.7559.132 Mobile Safari/537.36 uni-app Html5Plus/1.0 (Immersed/38.0)"
+        )
+
+    /** Form POST（登录流程，session 级别，维护 cookies） */
+    private fun formPost(
+        session: Connection,
+        path: String,
+        authorization: String,
+        rolecode: String = "06",
+        data: Map<String, String> = emptyMap()
+    ): Connection.Response {
+        val req = session.newRequest("$hostName$path")
+            .headers(baseHeaders(authorization, rolecode))
+            .timeout(timeout)
+            .ignoreContentType(true)
+            .ignoreHttpErrors(true)
+            .method(Connection.Method.POST)
+        data.forEach { (k, v) -> req.data(k, v) }
+        return req.execute()
+    }
+
+    /** JSON POST（登录后） */
+    private fun jsonPost(
+        token: EASToken,
+        path: String,
+        body: String,
+        rolecode: String = "06"
+    ): Connection.Response {
+        return Jsoup.newSession()
+            .url("$hostName$path")
+            .headers(baseHeaders("bearer ${token.accessToken}", rolecode))
+            .header("Content-Type", "application/json")
+            .cookies(token.cookies)
+            .requestBody(body)
+            .timeout(timeout)
+            .ignoreContentType(true)
+            .ignoreHttpErrors(true)
+            .method(Connection.Method.POST)
+            .execute()
+    }
+
+    /** Form POST（登录后，带已存 cookies） */
+    private fun authedFormPost(
+        token: EASToken,
+        path: String,
+        data: Map<String, String> = emptyMap()
+    ): Connection.Response {
+        val req = Jsoup.newSession()
+            .url("$hostName$path")
+            .headers(baseHeaders("bearer ${token.accessToken}"))
+            .cookies(token.cookies)
+            .timeout(timeout)
+            .ignoreContentType(true)
+            .ignoreHttpErrors(true)
+            .method(Connection.Method.POST)
+        data.forEach { (k, v) -> req.data(k, v) }
+        return req.execute()
+    }
+
+    // ================================================================ 登录
     override fun login(
         username: String,
         password: String,
@@ -46,64 +116,106 @@ class EASource internal constructor() : EASService {
         val res = MutableLiveData<DataState<EASToken>>()
         Thread {
             try {
-                val session: Connection = Jsoup.newSession().headers(defaultRequestHeader)
-                session.url("http://jw.hitsz.edu.cn/cas").get()
-                val doc1: Document =
-                    session.newRequest("https://ids.hit.edu.cn/authserver/combinedLogin.do?type=IDSUnion&appId=ff2dfca3a2a2448e9026a8c6e38fa52b&success=http%3A%2F%2Fjw.hitsz.edu.cn%2FcasLogin")
-                        .get()
+                val session = Jsoup.newSession()
+                    .headers(
+                        mapOf(
+                            "_lang" to "cn",
+                            "Accept" to "*/*",
+                            "User-Agent" to "Mozilla/5.0 (Linux; Android 15) AppleWebKit/537.36 Chrome/144.0 Mobile Safari/537.36 uni-app",
+                            "Accept-Encoding" to "gzip",
+                            "Connection" to "Keep-Alive"
+                        )
+                    )
 
-                val url = "https://sso.hitsz.edu.cn:7002" + doc1.select("#authZForm").first()
-                    .attr("action")
-                val client_id: String = doc1.select("input[name=client_id]").first().attr("value")
-                val scope: String = doc1.select("input[name=scope]").first().attr("value")
-                val state: String = doc1.select("input[name=state]").first().attr("value")
+                // 步骤1：获取 route cookie
+                val rsaResp = formPost(session, "/component/queryApplicationSetting/rsa", basicAuth, rolecode = "01")
+                // 步骤2：获取 RSA 参数（维持 session 一致）
+                val raskeyResp = formPost(session, "/c_raskey", basicAuth, rolecode = "06")
+                // 步骤3：LDAP 登录
+                val ldapResp = formPost(
+                    session, "/authentication/ldap", basicAuth, rolecode = "06",
+                    data = mapOf("username" to username, "password" to password)
+                )
 
-                val resp3: Connection.Response = session.newRequest(url).data("action", "authorize")
-                    .data("response_type", "code")
-                    .data("redirect_uri", "https://ids.hit.edu.cn/authserver/callback")
-                    .data("client_id", client_id)
-                    .data("scope", scope)
-                    .data("state", state)
-                    .data("username", username)
-                    .data("password", password).method(Connection.Method.POST).execute()
-                val login = resp3.url().file == "/authentication/main"
-                val cookies: HashMap<String, String> = HashMap()
-
-                if (login) {
-                    session.cookieStore().get(URI.create("http://jw.hitsz.edu.cn")).forEach { c ->
-                        cookies[c.name] = c.value
-                    }
-                    val token = EASToken() //登录成功，创建tokrn
-                    token.cookies = cookies //设置cookies
-                    token.username = username
-                    token.password = password
-                    val s = Jsoup.connect("$hostName/UserManager/queryxsxx")
-                        .timeout(timeout)
-                        .cookies(cookies)
-                        .headers(defaultRequestHeader)
-                        .header("X-Requested-With", "XMLHttpRequest")
-                        .ignoreContentType(true)
-                        .ignoreHttpErrors(true)
-                        .post()
-                    val json = s.getElementsByTag("body").text()
-                    val jo = JsonUtils.getJsonObject(json)
-                    token.stutype = if (jo?.getString("PYLX")
-                            ?.lowercase() == "1"
-                    ) EASToken.TYPE.UNDERGRAD else EASToken.TYPE.GRAD
-                    token.school = jo?.optString("YXMC")
-                    token.sfxsx = jo?.optString("sfxsx")
-                    token.major = jo?.optString("ZYMC")
-                    token.picture = jo?.optString("ZPBSLJ")
-                    token.phone = jo?.optString("LXDH")
-                    token.id = jo?.optString("ID")
-                    token.email = jo?.optString("DZYX")
-                    token.grade = jo?.optString("NJMC")
-                    token.stuId = jo?.optString("XH")
-                    token.name = jo?.optString("XM")
-                    res.postValue(DataState(token, DataState.STATE.SUCCESS))
-                } else {
-                    res.postValue(DataState(DataState.STATE.FETCH_FAILED))
+                val payload = JsonUtils.getJsonObject(ldapResp.body())
+                val accessToken = payload?.optString("access_token")
+                if (accessToken.isNullOrEmpty()) {
+                    res.postValue(DataState(DataState.STATE.FETCH_FAILED, payload?.optString("msg") ?: "登录失败"))
+                    return@Thread
                 }
+
+                val token = EASToken()
+                token.accessToken = accessToken
+                token.refreshToken = payload.optString("refresh_token")
+                token.username = username
+                token.password = password
+                // 保存登录链路中的 cookies（route, JSESSIONID 等）
+                val cookieMap = HashMap<String, String>()
+                rsaResp.cookies().forEach { (k, v) -> cookieMap[k] = v }
+                raskeyResp.cookies().forEach { (k, v) -> cookieMap[k] = v }
+                ldapResp.cookies().forEach { (k, v) -> cookieMap[k] = v }
+                token.cookies = cookieMap
+
+                // 解析用户信息
+                val dataObj = payload.optJSONObject("data")
+                val infoObj = payload.optJSONObject("info")
+                token.stutype = if (dataObj?.optString("pylx") == "1") EASToken.TYPE.UNDERGRAD else EASToken.TYPE.GRAD
+                token.phone = dataObj?.optString("lxdh")
+                token.name = dataObj?.optString("yhxm") ?: infoObj?.optString("xm")
+                token.school = dataObj?.optString("bmmc")
+                token.stuId = infoObj?.optString("yhdm")
+
+                res.postValue(DataState(token, DataState.STATE.SUCCESS))
+            } catch (e: Exception) {
+                e.printStackTrace()
+                res.postValue(DataState(DataState.STATE.FETCH_FAILED, e.message))
+            }
+        }.start()
+        return res
+    }
+
+    // ================================================================ 检查登录状态
+    override fun loginCheck(token: EASToken): LiveData<DataState<Pair<Boolean, EASToken>>> {
+        val res = MutableLiveData<DataState<Pair<Boolean, EASToken>>>()
+        Thread {
+            try {
+                val resp = authedFormPost(token, "/app/commapp/queryxnxqlist")
+                val jo = JsonUtils.getJsonObject(resp.body())
+                val valid = jo?.optInt("code", -1) == 200
+                res.postValue(DataState(Pair(valid, token)))
+            } catch (e: Exception) {
+                res.postValue(DataState(DataState.STATE.FETCH_FAILED))
+            }
+        }.start()
+        return res
+    }
+
+    // ================================================================ 学年学期列表
+    override fun getAllTerms(token: EASToken): LiveData<DataState<List<TermItem>>> {
+        val res = MutableLiveData<DataState<List<TermItem>>>()
+        Thread {
+            val terms = arrayListOf<TermItem>()
+            try {
+                val resp = authedFormPost(token, "/app/commapp/queryxnxqlist")
+                val jo = JsonUtils.getJsonObject(resp.body())
+                val content = jo?.optJSONArray("content")
+                if (content == null) {
+                    res.postValue(DataState(DataState.STATE.NOT_LOGGED_IN))
+                    return@Thread
+                }
+                for (i in 0 until content.length()) {
+                    val item = content.optJSONObject(i) ?: continue
+                    val term = TermItem(
+                        yearCode = item.optString("XN"),
+                        yearName = item.optString("XN"),
+                        termCode = item.optString("XQ"),
+                        termName = item.optString("XNXQMC")
+                    )
+                    term.name = buildTermDisplayName(term.yearName, term.termName)
+                    term.isCurrent = item.optString("SFDQXQ") == "1"
+                    terms.add(term)
+                }
+                res.postValue(DataState(terms, DataState.STATE.SUCCESS))
             } catch (e: Exception) {
                 e.printStackTrace()
                 res.postValue(DataState(DataState.STATE.FETCH_FAILED))
@@ -112,156 +224,43 @@ class EASource internal constructor() : EASService {
         return res
     }
 
-    /**
-     * 检查登录状态
-     */
-    override fun loginCheck(token: EASToken): LiveData<DataState<Pair<Boolean, EASToken>>> {
-        val res = MutableLiveData<DataState<Pair<Boolean, EASToken>>>()
-        Thread {
-            try {
-                val s = Jsoup.connect("$hostName/UserManager/queryxsxx")
-                    .timeout(timeout)
-                    .cookies(token.cookies)
-                    .headers(defaultRequestHeader)
-                    .header("X-Requested-With", "XMLHttpRequest")
-                    .ignoreContentType(true)
-                    .ignoreHttpErrors(true)
-                    .post()
-                val json = s.getElementsByTag("body").text()
-                if (json.contains("session已失效")) {
-                    res.postValue(DataState(Pair(false, token)))
-                } else {
-                    val jo = JsonUtils.getJsonObject(json)
-                    val login = jo?.has("XH") ?: false
-                    token.stutype = if (jo?.optString("PYLX", "1") == "1"
-                    ) EASToken.TYPE.UNDERGRAD else EASToken.TYPE.GRAD
-                    token.school = jo?.optString("YXMC")
-                    token.sfxsx = jo?.optString("sfxsx")
-                    token.major = jo?.optString("ZYMC")
-                    token.picture = jo?.optString("ZPBSLJ")
-                    token.phone = jo?.optString("LXDH")
-                    token.id = jo?.optString("ID")
-                    token.email = jo?.optString("DZYX")
-                    token.grade = jo?.optString("NJMC")
-                    token.stuId = jo?.optString("XH")
-                    token.name = jo?.optString("XM")
-                    res.postValue(DataState(Pair(login, token)))
-                }
-            } catch (e: IOException) {
-                res.postValue(DataState(DataState.STATE.FETCH_FAILED))
-            }
-        }.start()
-        return res
-    }
-
-
-    /**
-     * 获取学年学期
-     */
-    override fun getAllTerms(token: EASToken): LiveData<DataState<List<TermItem>>> {
-        val res = MutableLiveData<DataState<List<TermItem>>>()
-        Thread {
-            val terms = arrayListOf<TermItem>()
-            try {
-                val s = Jsoup.connect("$hostName/component/queryxnxqdata")
-                    .cookies(token.cookies)
-                    .timeout(timeout)
-                    .headers(defaultRequestHeader)
-                    .header("X-Requested-With", "XMLHttpRequest")
-                    .ignoreContentType(true)
-                    .ignoreHttpErrors(true)
-                    .post()
-                val json = s.getElementsByTag("body").first().text()
-                val jsonList = JsonUtils.getJsonArray(json)
-                jsonList?.let { ja ->
-                    for (i in 0 until ja.length()) {
-                        val jo = ja.optJSONObject(i)
-                        val m = mutableMapOf<String, String>()
-                        jo?.let {
-                            for (key in it.keys()) {
-                                m[key.replace("\"".toRegex(), "")] =
-                                    it.getString(key).toString().replace("\"".toRegex(), "")
-                            }
-                            val term =
-                                TermItem(
-                                    m["XN"] ?: "",
-                                    m["XNMC"] ?: "", m["XQ"] ?: "", m["XQMC"] ?: ""
-                                )
-                            term.isCurrent = m["SFDQXQ"] == "1"
-                            terms.add(term)
-                        }
-                    }
-                    res.postValue(DataState(terms, DataState.STATE.SUCCESS))
-                } ?: run {
-                    res.postValue(DataState(DataState.STATE.NOT_LOGGED_IN))
-                }
-
-
-            } catch (e: IOException) {
-                res.postValue(DataState(DataState.STATE.FETCH_FAILED))
-            }
-        }.start()
-        return res
-    }
-
-    /**
-     * 获取学期开始日期
-     */
+    // ================================================================ 学期开始日期
     @SuppressLint("SimpleDateFormat")
     override fun getStartDate(token: EASToken, term: TermItem): LiveData<DataState<Calendar>> {
         val res = MutableLiveData<DataState<Calendar>>()
         Thread {
             try {
-                val s = Jsoup.connect("$hostName/component/queryRlZcSj")
-                    .timeout(timeout)
-                    .cookies(token.cookies)
-                    .headers(defaultRequestHeader)
-                    .header("X-Requested-With", "XMLHttpRequest")
-                    .data("djz", "1")
-                    .data("xn", term.yearCode)
-                    .data("xq", term.termCode)
-                    .ignoreContentType(true)
-                    .ignoreHttpErrors(true)
-                    .post()
-                val json = s.getElementsByTag("body").first().text()
-                val jo = JsonUtils.getJsonObject(json)
-                val contents = jo?.optJSONArray("content")
-                val firstWeek = contents?.optJSONObject(0)
-                val date = firstWeek?.optString("rq")
-                val result = Calendar.getInstance()
-                result.firstDayOfWeek = Calendar.MONDAY
-                result[Calendar.DAY_OF_WEEK] = Calendar.MONDAY
-                date?.let {
-                    result.timeInMillis = SimpleDateFormat("yyyy-MM-dd").parse(it)?.time ?: 0
-//                    if(els.isNotEmpty()) result[Calendar.YEAR] = Integer.parseInt(els[0])
-//                    if(els.size>1)result[Calendar.MONTH] = Integer.parseInt(els[1]) - 1
-//                    if(els.size>2)result[Calendar.DAY_OF_MONTH] = Integer.parseInt(els[2])
-
+                val calendar = Calendar.getInstance()
+                calendar.firstDayOfWeek = Calendar.MONDAY
+                // 用第1周课表矩阵接口获取第1天日期
+                val weekBody = """{"xn":"${term.yearCode}","xq":"${term.termCode}","zc":"1","type":"json"}"""
+                val weekResp = jsonPost(token, "/app/Kbcx/query", weekBody)
+                val weekJo = JsonUtils.getJsonObject(weekResp.body())
+                val contentArr = weekJo?.optJSONArray("content")
+                val df = SimpleDateFormat("yyyy-MM-dd")
+                if (contentArr != null) {
+                    for (i in 0 until contentArr.length()) {
+                        val obj = contentArr.optJSONObject(i) ?: continue
+                        val rqList = obj.optJSONArray("rqList") ?: continue
+                        val firstDay = rqList.optJSONObject(0) ?: continue
+                        val rq = firstDay.optString("RQ")
+                        if (rq.isNotEmpty()) {
+                            val parsed = df.parse(rq)
+                            if (parsed != null) calendar.timeInMillis = parsed.time
+                        }
+                        break
+                    }
                 }
-//                val json = s.getElementsByTag("body").text()
-//                val monthList: JSONArray? = JsonUtils.getJsonObject(json)?.optJSONArray("monlist")
-//                val firstMon: JSONObject? = monthList?.optJSONObject(0)
-//                val year = firstMon?.optInt("yy")
-//                val month = firstMon?.optInt("mm")
-//                val firstMonDays: JSONArray? = firstMon?.optJSONArray("dszlist")
-//                var index = 0
-//                for (i in 0 until (firstMonDays?.length() ?: 0)) {
-//                    val aWeek: JSONObject? = firstMonDays?.optJSONObject(i)
-//                    val attr = aWeek?.optString("xldjz", "")
-//                    if (!attr.isNullOrEmpty() && attr != "null") break
-//                    index++
-//                }
-                res.postValue(DataState(result))
+                res.postValue(DataState(calendar))
             } catch (e: Exception) {
+                e.printStackTrace()
                 res.postValue(DataState(DataState.STATE.FETCH_FAILED, e.message))
             }
         }.start()
         return res
     }
 
-    /**
-     * 获取课程
-     */
+    // ================================================================ 已选课程
     override fun getSubjectsOfTerm(
         token: EASToken,
         term: TermItem
@@ -270,278 +269,67 @@ class EASource internal constructor() : EASService {
         Thread {
             val result: MutableList<TermSubject> = ArrayList()
             try {
-                val r = Jsoup.connect("$hostName/Xsxk/queryYxkc")
-                    .timeout(timeout)
-                    .cookies(token.cookies)
-                    .headers(defaultRequestHeader)
-                    .header("X-Requested-With", "XMLHttpRequest")
-                    .ignoreContentType(true)
-                    .ignoreHttpErrors(true)
-                    .data("p_pylx", token.getStudentType())
-                    .data("p_sfgldjr", "0")
-                    .data("p_sfredis", "0")
-                    .data("p_sfsyxkgwc", "0")
-                    .data("p_xn", term.yearCode) //学年
-                    .data("p_xq", term.termCode) //学期
-                    .data("p_xnxq", term.getCode()) //学年学期
-                    .data("p_dqxn", term.yearCode) //当前学年
-                    .data("p_dqxq", term.termCode) //当前学期
-                    .data("p_dqxnxq", term.getCode()) //当前学年学期
-                    .data("p_xkfsdm", "yixuan") //已选
-                    .data("p_sfhlctkc", "0")
-                    .data("p_sfhllrlkc", "0")
-                    .data("p_sfxsgwckb", "1")
-                    .method(Connection.Method.POST).execute()
-                val json = JsonUtils.getJsonObject(r.body())
-                val yxkc: JSONArray? = json?.optJSONArray("yxkcList")
+                val pylxRaw = token.getStudentType()
+                val pylxPad = pylxRaw.padStart(2, '0')
+                val pylxCandidates = linkedSetOf(pylxRaw, pylxPad)
+                val roleCandidates = listOf("01", "06")
+                val xnxqCandidates = linkedSetOf(
+                    term.getCode(),
+                    "${term.yearCode}-${term.termCode}",
+                    term.yearCode + term.termCode.padStart(2, '0'),
+                    "${term.yearCode}-${term.termCode.padStart(2, '0')}"
+                )
+                val xkfsCandidates = listOf("yixuan", "")
+                var yxkc: org.json.JSONArray? = null
+                for (roleHeader in roleCandidates) {
+                    for (pylx in pylxCandidates) {
+                        for (xnxq in xnxqCandidates) {
+                            for (xkfs in xkfsCandidates) {
+                                val body =
+                                    """{"RoleCode":"$roleHeader","p_pylx":"$pylx","p_xn":"${term.yearCode}","p_xq":"${term.termCode}","p_xnxq":"$xnxq","p_gjz":"","p_kc_gjz":"","p_xkfsdm":"$xkfs"}"""
+                                val resp = jsonPost(
+                                    token,
+                                    "/app/Xsxk/queryYxkc?_lang=zh_CN",
+                                    body,
+                                    rolecode = roleHeader
+                                )
+                                val jo = JsonUtils.getJsonObject(resp.body())
+                                val list = extractYxkcList(jo)
+                                if (list != null && list.length() > 0) {
+                                    yxkc = list
+                                    break
+                                }
+                            }
+                            if (yxkc != null) break
+                        }
+                        if (yxkc != null) break
+                    }
+                    if (yxkc != null) break
+                }
                 yxkc?.let {
                     for (i in 0 until it.length()) {
-                        val subject: JSONObject? = yxkc.optJSONObject(i)
+                        val subject = it.optJSONObject(i) ?: continue
                         val s = TermSubject()
-                        s.code = subject?.optString("kcdm")
-                        // s.id = JsonUtils.getStringData(subject, "kcid")
-                        s.name = subject?.optString("kcmc") ?: ""
-                        when (subject?.optString("kcxzmc")) {
+                        val rawCode = subject.optString("kcdm")
+                        s.code = CourseCodeUtils.normalize(rawCode) ?: rawCode
+                        s.name = subject.optString("kcmc", "")
+                        s.school = subject.optString("kkyxmc")
+                        s.teacher = extractSelectedTeacher(subject)
+                        s.credit = subject.optString("xf").toFloatOrNull() ?: 0f
+                        s.key = subject.optString("id")
+                        s.field = subject.optString("kclbmc")
+                        when (subject.optString("kcxzmc")) {
                             "必修" -> s.type = TermSubject.TYPE.COM_A
                             "限选" -> s.type = TermSubject.TYPE.OPT_A
                             "任选" -> s.type = TermSubject.TYPE.OPT_B
                         }
-                        if (subject?.optString("xkfsdm")?.toLowerCase(Locale.ROOT)
-                                ?.contains("mooc") == true
-                        ) {
+                        val rwlxmc = subject.optString("rwlxmc", "")
+                        if (rwlxmc.contains("MOOC", ignoreCase = true))
                             s.type = TermSubject.TYPE.MOOC
-                        }
-                        s.school = subject?.optString("kkyxmc")
-                        s.credit = subject?.optString("xf")?.toFloat() ?: 0f
-                        s.key = subject?.optString("kcid")
-                        s.field = subject?.optString("kclbmc")
                         result.add(s)
                     }
                 }
                 res.postValue(DataState(result))
-            } catch (e: IOException) {
-                res.postValue(DataState(DataState.STATE.FETCH_FAILED, e.message))
-            }
-        }.start()
-        return res
-    }
-
-    /**
-     * 获取个人课表
-     */
-    override fun getTimetableOfTerm(
-        term: TermItem,
-        token: EASToken
-    ): LiveData<DataState<List<CourseItem>>> {
-        val res = MutableLiveData<DataState<List<CourseItem>>>()
-        Thread {
-            val result: MutableList<CourseItem> = ArrayList()
-            try {
-                val r = Jsoup.connect("$hostName/xszykb/queryxszykbzong")
-                    .timeout(timeout)
-                    .cookies(token.cookies)
-                    .headers(defaultRequestHeader)
-                    .header("X-Requested-With", "XMLHttpRequest") //.data("zc", "2")
-                    .data("xn", term.yearCode)
-                    .data("xq", term.termCode)
-                    .ignoreContentType(true)
-                    .ignoreHttpErrors(true)
-                    .method(Connection.Method.POST)
-                    .execute()
-                val json = r.body()
-                val jsonList = JsonUtils.getJsonArray(json)
-                for (i in 0 until (jsonList?.length() ?: 0)) {
-                    val jo = jsonList?.optJSONObject(i)
-                    val tm: String? = jo?.optString("KEY")
-                    val courseItem = CourseItem()
-                    if (!tm.isNullOrEmpty() && tm.contains("xq") && tm.contains("jc")) {
-                        try {
-                            val twoInfo = tm.split("_".toRegex()).toTypedArray()
-                            courseItem.dow = twoInfo[0][2] - '0'
-                            val beginS = twoInfo[1].replace("jc".toRegex(), "")
-                            if (!TextUtils.isEmpty(beginS) && TextTools.isNumber(beginS)) {
-                                courseItem.begin = beginS.toInt() * 2 - 1
-                            }
-                        } catch (e: Exception) {
-                            e.printStackTrace()
-                        }
-                    }
-                    courseItem.last = 2
-                    analyseBlockText(courseItem, jo?.optString("SKSJ"))
-                    if (!result.contains(courseItem) && courseItem.begin in 1..12) {
-                        result.add(courseItem)
-                    }
-                }
-                res.postValue(DataState(result, DataState.STATE.SUCCESS))
-            } catch (e: java.lang.Exception) {
-                e.printStackTrace()
-                res.postValue(DataState(DataState.STATE.FETCH_FAILED, e.message))
-            }
-        }.start()
-        return res
-    }
-
-
-    private fun analyseBlockText(result: CourseItem, txt: String?) {
-        if (TextUtils.isEmpty(txt)) return
-        var text = txt!!
-        var name: String? = null
-        var teacher: String? = null
-        var classroom: String? = null
-        var specificTime: String? = null
-        var weekText: String? = null
-        text = text.replace("\n".toRegex(), "")
-        val inBoxes: MutableList<String> = ArrayList()
-        val outBoxes: MutableList<String> = ArrayList()
-        var sb = StringBuilder()
-        var inBox = false
-        for (i in text.indices) {
-            when {
-                text[i] == '[' -> {
-                    if (!inBox && sb.isNotEmpty()) {
-                        outBoxes.add(sb.toString())
-                    }
-                    sb = StringBuilder()
-                    inBox = true
-                }
-                text[i] == ']' -> {
-                    if (inBox && sb.isNotEmpty()) {
-                        inBoxes.add(sb.toString())
-                    }
-                    sb = StringBuilder()
-                    inBox = false
-                }
-                else -> {
-                    sb.append(text[i])
-                }
-            }
-        }
-
-        val toRemove: MutableList<String> = ArrayList()
-        for (info in inBoxes) {
-            if (TextTools.containsNumber(info) && info.contains("周") ||
-                TextTools.isNumber(
-                    info.replace(",".toRegex(), "").replace("-".toRegex(), "").replace(
-                        "单".toRegex(),
-                        ""
-                    ).replace("双".toRegex(), "")
-                )
-            ) {
-                weekText = info
-                toRemove.add(info)
-            } else if (TextTools.containsNumber(info) && info.contains("节")) {
-                specificTime = info.replace("节".toRegex(), "")
-                toRemove.add(info)
-            }
-        }
-        inBoxes.removeAll(toRemove)
-        if (inBoxes.size > 1) {
-            teacher = inBoxes[0]
-            classroom = inBoxes[inBoxes.size - 1]
-        } else if (inBoxes.size == 1) {
-            classroom = inBoxes[0]
-        }
-        if (outBoxes.size > 0) name = outBoxes[0]
-        if (weekText != null) {
-            result.weeks.clear()
-            for (week in weekText.split(",".toRegex()).toTypedArray()) {
-                var wk = week
-                var pairW = false
-                var singW = false
-                when {
-                    wk.contains("单") -> {
-                        singW = true
-                        wk = wk.replace("单".toRegex(), "").replace("周".toRegex(), "")
-                    }
-                    wk.contains("双") -> {
-                        pairW = true
-                        wk = wk.replace("双".toRegex(), "").replace("周".toRegex(), "")
-                    }
-                    else -> wk = wk.replace("周".toRegex(), "")
-                }
-                if (wk.contains("-")) {
-                    val ft = wk.split("-".toRegex()).toTypedArray()
-                    val from = ft[0].toInt()
-                    val to = ft[1].toInt()
-                    for (i in from..to) {
-                        if (pairW && i % 2 != 0 || singW && i % 2 == 0) continue
-                        if (!result.weeks.contains(i)) result.weeks.add(i)
-                        //weeks.append(i+"").append(",");
-                    }
-                } else if (!result.weeks.contains(wk.toInt())) result.weeks.add(wk.toInt())
-            }
-        }
-        if (specificTime != null && specificTime.contains("-")) {
-            val spcf = specificTime.split("-".toRegex()).toTypedArray()
-            if (spcf.isNotEmpty()) {
-                result.begin = spcf[0].toInt()
-            }
-            if (spcf.size > 1) {
-                result.last = (spcf[1].toInt() - spcf[0].toInt() + 1)
-            }
-        }
-        result.name = name
-        result.teacher = teacher
-        result.classroom = classroom
-    }
-
-
-    /**
-     * 获取课表结构
-     */
-    override fun getScheduleStructure(
-        term: TermItem,
-        isUndergraduate: Boolean?,
-        token: EASToken
-    ): LiveData<DataState<MutableList<TimePeriodInDay>>> {
-        val res = MutableLiveData<DataState<MutableList<TimePeriodInDay>>>()
-        Thread {
-            val result: MutableList<TimePeriodInDay> = ArrayList()
-            try {
-                val r = Jsoup.connect("$hostName/component/queryKbjg")
-                    .timeout(timeout)
-                    .cookies(token.cookies)
-                    .headers(defaultRequestHeader)
-                    .header("X-Requested-With", "XMLHttpRequest")
-                    .ignoreContentType(true)
-                    .ignoreHttpErrors(true)
-                    .data("xn", term.yearCode) //学年
-                    .data("xq", term.termCode) //学期
-                    .data(
-                        "pylx",
-                        if (isUndergraduate == null) token.getStudentType() else (if (isUndergraduate == true) "1" else "2")
-                    )
-                    .method(Connection.Method.POST).execute()
-                val json = r.body()
-                val content = JsonUtils.getJsonObject(json)?.optJSONArray("content")
-                val dateFormatter = SimpleDateFormat("HH:mm", Locale.getDefault())
-                content?.let {
-                    for (i in 0 until it.length()) {
-                        val tp: JSONObject? = it.optJSONObject(i)
-                        val from = Calendar.getInstance()
-                        val to = Calendar.getInstance()
-                        val fromTxt: String =
-                            tp?.optString("kssj", "00:00") ?: "00:00"
-                        val toTxt: String =
-                            tp?.optString("jssj", "00:00") ?: "00:00"
-                        from.timeInMillis =
-                            try {
-                                dateFormatter.parse(fromTxt)?.time ?: 0
-                            } catch (e: Exception) {
-                                0
-                            }
-                        to.timeInMillis =
-                            try {
-                                dateFormatter.parse(toTxt)?.time ?: 0
-                            } catch (e: Exception) {
-                                0
-                            }
-                        result.add(TimePeriodInDay(TimeInDay(from), TimeInDay(to)))
-                    }
-                    res.postValue(DataState(result))
-                } ?: run {
-                    res.postValue(DataState(DataState.STATE.FETCH_FAILED))
-                }
             } catch (e: Exception) {
                 e.printStackTrace()
                 res.postValue(DataState(DataState.STATE.FETCH_FAILED, e.message))
@@ -550,9 +338,289 @@ class EASource internal constructor() : EASService {
         return res
     }
 
-    /**
-     * 获取最终成绩
-     */
+    // ================================================================ 周课表（按周矩阵接口聚合）
+    override fun getTimetableOfTerm(
+        term: TermItem,
+        token: EASToken
+    ): LiveData<DataState<List<CourseItem>>> {
+        val res = MutableLiveData<DataState<List<CourseItem>>>()
+        Thread {
+            val result: MutableList<CourseItem> = ArrayList()
+            try {
+                // 获取周次数量
+                val zcBody = """{"xn":"${term.yearCode}","xq":"${term.termCode}"}"""
+                val zcResp = jsonPost(token, "/app/commapp/queryzclistbyxnxq", zcBody)
+                val zcJo = JsonUtils.getJsonObject(zcResp.body())
+                val weekCount = zcJo?.optJSONArray("content")?.length() ?: 18
+
+                for (zc in 1..weekCount) {
+                    val kbBody = """{"xn":"${term.yearCode}","xq":"${term.termCode}","zc":"$zc","type":"json"}"""
+                    val kbResp = jsonPost(token, "/app/Kbcx/query", kbBody)
+                    val kbJo = JsonUtils.getJsonObject(kbResp.body())
+                    val contentArr = kbJo?.optJSONArray("content") ?: continue
+
+                    // 提取 jcList（节次时间表）
+                    var jcList = org.json.JSONArray()
+                    for (i in 0 until contentArr.length()) {
+                        val o = contentArr.optJSONObject(i) ?: continue
+                        val jl = o.optJSONArray("jcList")
+                        if (jl != null && jl.length() > 0) { jcList = jl; break }
+                    }
+
+                    for (i in 0 until contentArr.length()) {
+                        val obj = contentArr.optJSONObject(i) ?: continue
+                        val kcxxList = obj.optJSONArray("kcxxList") ?: continue
+                        for (k in 0 until kcxxList.length()) {
+                            val kc = kcxxList.optJSONObject(k) ?: continue
+                            val dow = kc.optInt("XQJ", 0)
+                            val dj = kc.optInt("DJ", 0)
+                            val rawName = kc.optString("KCMC", kc.optString("KBXX", ""))
+                            val firstLine = rawName.split("\n").firstOrNull() ?: rawName
+                            val name = firstLine.replace(Regex("\\[.*?]"), "").trim()
+                            val kbxx = kc.optString("KBXX", "")
+                            val classroom = extractClassroom(kbxx)
+                            val teacher = extractTeacher(kc, name, kbxx)
+                            val rawCode = kc.optString("KCDM")
+                            val code = CourseCodeUtils.normalize(rawCode) ?: rawCode
+
+                            var begin = if (dj > 0) (dj - 1) * 2 + 1 else 0
+                            var last = 2
+                            for (j in 0 until jcList.length()) {
+                                val jc = jcList.optJSONObject(j) ?: continue
+                                if (jc.optInt("DJ") == dj) {
+                                    begin = jc.optInt("KSJC", begin)
+                                    last = jc.optInt("JSJC", begin + 1) - begin + 1
+                                    break
+                                }
+                            }
+
+                            // 合并同课同时槽的周次
+                            val existing = result.find {
+                                it.name == name && it.dow == dow && it.begin == begin
+                            }
+                            if (existing != null) {
+                                if (!existing.weeks.contains(zc)) existing.weeks.add(zc)
+                                if (existing.teacher.isNullOrBlank() && !teacher.isNullOrBlank()) {
+                                    existing.teacher = teacher
+                                }
+                            } else if (begin > 0 && dow > 0) {
+                                val courseItem = CourseItem()
+                                courseItem.name = name
+                                courseItem.code = code
+                                courseItem.dow = dow
+                                courseItem.begin = begin
+                                courseItem.last = last
+                                courseItem.classroom = classroom
+                                courseItem.teacher = teacher
+                                courseItem.weeks.add(zc)
+                                result.add(courseItem)
+                            }
+                        }
+                    }
+                }
+                res.postValue(DataState(result, DataState.STATE.SUCCESS))
+            } catch (e: Exception) {
+                e.printStackTrace()
+                res.postValue(DataState(DataState.STATE.FETCH_FAILED, e.message))
+            }
+        }.start()
+        return res
+    }
+
+    private fun extractClassroom(kbxx: String): String? =
+        Regex("\\[([^\\]]+)]").find(kbxx)?.groupValues?.getOrNull(1)
+
+    private fun extractTeacher(kc: org.json.JSONObject, courseName: String?, kbxx: String): String? {
+        val keys = listOf("SKJS", "JSXM", "RKJS", "JS", "JSMC", "JSMC1", "JSMC2")
+        for (key in keys) {
+            val v = kc.optString(key, "").trim()
+            if (v.isNotEmpty()) return v
+        }
+        val lines = kbxx.split("\n")
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+            .filterNot { it.contains("[") && it.contains("]") }
+        val cleaned = if (courseName.isNullOrBlank()) {
+            lines
+        } else {
+            lines.filterNot { it.replace(" ", "") == courseName.replace(" ", "") }
+        }
+        if (cleaned.isNotEmpty()) {
+            val raw = cleaned.joinToString(" / ")
+            return raw.replace(Regex("^(教师|老师|Teacher)[:： ]*"), "").trim()
+        }
+        return null
+    }
+
+    private fun extractSelectedTeacher(subject: org.json.JSONObject): String? {
+        val keys = listOf(
+            "DGJSMC", "dgjsmc",
+            "SKJS", "SKJSXM", "SKJSMC", "SKJSXX",
+            "JSXM", "JSMC", "RKJS", "JS",
+            "skjs", "skjsxm", "skjsmc", "skjsxx",
+            "jsxm", "jsmc", "rkjs", "js"
+        )
+        for (key in keys) {
+            val v = subject.optString(key, "").trim()
+            if (v.isNotEmpty()) return v
+        }
+        return null
+    }
+
+    private fun extractYxkcList(jo: JSONObject?): org.json.JSONArray? {
+        if (jo == null) return null
+        val keys = listOf("yxkcList", "content", "data", "rows", "list")
+        for (key in keys) {
+            val arr = jo.optJSONArray(key)
+            if (arr != null && arr.length() > 0) return arr
+        }
+        val dataObj = jo.optJSONObject("data")
+        if (dataObj != null) {
+            for (key in keys) {
+                val arr = dataObj.optJSONArray(key)
+                if (arr != null && arr.length() > 0) return arr
+            }
+        }
+        val contentObj = jo.optJSONObject("content")
+        if (contentObj != null) {
+            val it = contentObj.keys()
+            while (it.hasNext()) {
+                val key = it.next()
+                val arr = contentObj.optJSONArray(key) ?: continue
+                if (arr.length() == 0) continue
+                if (key.contains("yxkc", ignoreCase = true)) {
+                    return arr
+                }
+                val first = arr.optJSONObject(0)
+                if (first == null) return arr
+                if (first.has("kcmc") || first.has("kcdm") || first.has("dgjsmc") || first.has("DGJSMC")) {
+                    return arr
+                }
+                val scanLimit = minOf(arr.length(), 5)
+                for (i in 1 until scanLimit) {
+                    val obj = arr.optJSONObject(i) ?: continue
+                    if (obj.has("kcmc") || obj.has("kcdm") || obj.has("dgjsmc") || obj.has("DGJSMC")) {
+                        return arr
+                    }
+                }
+            }
+        }
+        return null
+    }
+
+    private fun buildTermDisplayName(yearName: String?, termName: String?): String {
+        val year = yearName?.trim().orEmpty()
+        val term = termName?.trim().orEmpty()
+        if (year.isEmpty()) return term
+        if (term.isEmpty()) return year
+        return if (term.contains(year)) term else "$year $term"
+    }
+
+    // ================================================================ 课表时间结构
+    @SuppressLint("SimpleDateFormat")
+    override fun getScheduleStructure(
+        term: TermItem,
+        isUndergraduate: Boolean?,
+        token: EASToken
+    ): LiveData<DataState<MutableList<TimePeriodInDay>>> {
+        val res = MutableLiveData<DataState<MutableList<TimePeriodInDay>>>()
+        Thread {
+            try {
+                val kbBody = """{"xn":"${term.yearCode}","xq":"${term.termCode}","zc":"1","type":"json"}"""
+                val kbResp = jsonPost(token, "/app/Kbcx/query", kbBody)
+                val kbJo = JsonUtils.getJsonObject(kbResp.body())
+                val contentArr = kbJo?.optJSONArray("content")
+                val df = SimpleDateFormat("HH:mm", Locale.getDefault())
+                val slots: MutableList<TimePeriodInDay?> = mutableListOf()
+                if (contentArr != null) {
+                    for (i in 0 until contentArr.length()) {
+                        val obj = contentArr.optJSONObject(i) ?: continue
+                        val jcList = obj.optJSONArray("jcList") ?: continue
+                        var maxPeriod = 0
+                        for (j in 0 until jcList.length()) {
+                            val jc = jcList.optJSONObject(j) ?: continue
+                            val jsjc = jc.optInt("JSJC", 0)
+                            if (jsjc > maxPeriod) maxPeriod = jsjc
+                        }
+                        if (maxPeriod <= 0) continue
+                        val defaults = defaultScheduleStructure()
+                        if (maxPeriod <= defaults.size) {
+                            res.postValue(DataState(defaults.take(maxPeriod).toMutableList()))
+                            return@Thread
+                        }
+                        while (slots.size < maxPeriod) slots.add(null)
+                        for (j in 0 until jcList.length()) {
+                            val jc = jcList.optJSONObject(j) ?: continue
+                            val ks = jc.optInt("KSJC", 0)
+                            val js = jc.optInt("JSJC", 0)
+                            val count = js - ks + 1
+                            val sj = jc.optString("SJ", "")
+                            val parts = sj.split("—", "–", "-")
+                            if (count <= 0 || parts.size < 2) continue
+                            try {
+                                val start = df.parse(parts[0].trim()) ?: continue
+                                val end = df.parse(parts[1].trim()) ?: continue
+                                val totalMinutes = ((end.time - start.time) / 60000L).toInt()
+                                if (totalMinutes <= 0) continue
+                                val perSlot = totalMinutes / count
+                                if (perSlot <= 0) continue
+                                for (idx in 0 until count) {
+                                    val slotStart = (start.time / 60000L).toInt() + perSlot * idx
+                                    val slotEnd = if (idx == count - 1) {
+                                        (end.time / 60000L).toInt()
+                                    } else {
+                                        (start.time / 60000L).toInt() + perSlot * (idx + 1)
+                                    }
+                                    val from = TimeInDay(slotStart / 60, slotStart % 60)
+                                    val to = TimeInDay(slotEnd / 60, slotEnd % 60)
+                                    val pos = ks - 1 + idx
+                                    if (pos in slots.indices) {
+                                        slots[pos] = TimePeriodInDay(from, to)
+                                    }
+                                }
+                            } catch (_: Exception) { }
+                        }
+                        if (slots.any { it != null }) break
+                    }
+                }
+                val result = if (slots.isNotEmpty() && slots.all { it != null }) {
+                    slots.map { it!! }.toMutableList()
+                } else {
+                    val defaults = defaultScheduleStructure()
+                    val size = maxOf(slots.size, defaults.size)
+                    val filled = MutableList(size) { idx ->
+                        slots.getOrNull(idx) ?: defaults.getOrNull(idx) ?: defaults.last()
+                    }
+                    filled
+                }
+                res.postValue(DataState(result))
+            } catch (e: Exception) {
+                e.printStackTrace()
+                res.postValue(DataState(defaultScheduleStructure()))
+            }
+        }.start()
+        return res
+    }
+
+    @SuppressLint("SimpleDateFormat")
+    private fun defaultScheduleStructure(): MutableList<TimePeriodInDay> {
+        val slots = listOf(
+            "08:30" to "09:20", "09:25" to "10:15",
+            "10:30" to "11:20", "11:25" to "12:15",
+            "14:00" to "14:50", "14:55" to "15:45",
+            "16:00" to "16:50", "16:55" to "17:45",
+            "18:45" to "19:35", "19:40" to "20:30",
+            "20:45" to "21:35", "21:40" to "22:30"
+        )
+        val df = SimpleDateFormat("HH:mm")
+        return slots.map { (s, e) ->
+            val from = Calendar.getInstance().also { c -> c.timeInMillis = df.parse(s)!!.time }
+            val to = Calendar.getInstance().also { c -> c.timeInMillis = df.parse(e)!!.time }
+            TimePeriodInDay(TimeInDay(from), TimeInDay(to))
+        }.toMutableList()
+    }
+
+    // ================================================================ 成绩
     override fun getPersonalScores(
         term: TermItem,
         token: EASToken,
@@ -562,38 +630,27 @@ class EASource internal constructor() : EASService {
         Thread {
             val result: MutableList<CourseScoreItem> = ArrayList()
             try {
-                val r = Jsoup.connect("$hostName/cjgl/grcjcx/grcjcx")
-                    .timeout(timeout)
-                    .cookies(token.cookies)
-                    .headers(defaultRequestHeader)
-                    .header("X-Requested-With", "XMLHttpRequest")
-                    .header("Content-Type", "application/json")
-                    .ignoreContentType(true)
-                    .ignoreHttpErrors(true)
-                    .requestBody(
-                        """{"xn":"""" + term.yearCode +
-                                """","xq":""" + term.termCode +
-                                ""","kcmc":null""" + ""","cxbj":""" + testType.value +
-                                ""","pylx":${token.getStudentType()},"current":1,"pageSize":300}"""
-                    )
-                    .method(Connection.Method.POST).execute()
-                val json = r.body()
-                val content =
-                    JsonUtils.getJsonObject(json)?.optJSONObject("content")?.optJSONArray("list")
+                val qzqmFlag = when (testType) {
+                    EASService.TestType.NORMAL -> "qm"
+                    EASService.TestType.RESIT  -> "qz"
+                    else -> "qm"
+                }
+                val body = """{"xn":"${term.yearCode}","xq":"${term.termCode}","qzqmFlag":"$qzqmFlag","type":"json"}"""
+                val resp = jsonPost(token, "/app/cjgl/xscjList?_lang=zh_CN", body)
+                val jo = JsonUtils.getJsonObject(resp.body())
+                val content = jo?.optJSONArray("content")
                 content?.let {
                     for (i in 0 until it.length()) {
-                        val tp: JSONObject = it.optJSONObject(i)
-                        val item = CourseScoreItem();
-                        item.assessMethod = tp.optString("khfs", "null")
-                        item.courseCategory = tp.optString("kclb", "null")
-                        item.courseCode = tp.optString("kcdm", "null")
-                        item.courseName = tp.optString("kcmc", "null")
-                        item.courseProperty = tp.optString("kcxz", "null")
-                        item.credits = tp.optInt("xf", -1)
-                        item.finalScores = tp.optInt("zzcj", -1)
-                        item.hours = tp.optInt("xs", -1)
-                        item.schoolName = tp.optString("yxmc", "null")
-                        item.termName = tp.optString("xnxqmc", "null")
+                        val tp = it.optJSONObject(i) ?: continue
+                        val item = CourseScoreItem()
+                        item.courseCode = tp.optString("kcdm")
+                        item.courseName = tp.optString("kcmc")
+                        item.credits = tp.optString("xf").toIntOrNull() ?: 0
+                        item.finalScores = tp.optString("zf").toIntOrNull() ?: -1
+                        item.courseProperty = tp.optString("kcxz")
+                        item.courseCategory = tp.optString("kclb", tp.optString("kclbmc", ""))
+                        item.termName = tp.optString("xnxq", term.yearCode + term.termCode)
+                        item.assessMethod = tp.optString("khfs", "")
                         result.add(item)
                     }
                     res.postValue(DataState(result))
@@ -608,24 +665,109 @@ class EASource internal constructor() : EASService {
         return res
     }
 
+    fun getPersonalScoresWithSummary(
+        term: TermItem,
+        token: EASToken,
+        testType: EASService.TestType
+    ): LiveData<DataState<ScoreQueryResult>> {
+        val res = MutableLiveData<DataState<ScoreQueryResult>>()
+        Thread {
+            val result: MutableList<CourseScoreItem> = ArrayList()
+            try {
+                val qzqmFlag = when (testType) {
+                    EASService.TestType.NORMAL -> "qm"
+                    EASService.TestType.RESIT  -> "qz"
+                    else -> "qm"
+                }
+                val body = """{"xn":"${term.yearCode}","xq":"${term.termCode}","qzqmFlag":"$qzqmFlag","type":"json"}"""
+                val resp = jsonPost(token, "/app/cjgl/xscjList?_lang=zh_CN", body)
+                val jo = JsonUtils.getJsonObject(resp.body())
+                val content = jo?.optJSONArray("content")
+                content?.let {
+                    for (i in 0 until it.length()) {
+                        val tp = it.optJSONObject(i) ?: continue
+                        val item = CourseScoreItem()
+                        item.courseCode = tp.optString("kcdm")
+                        item.courseName = tp.optString("kcmc")
+                        item.credits = tp.optString("xf").toIntOrNull() ?: 0
+                        item.finalScores = tp.optString("zf").toIntOrNull() ?: -1
+                        item.courseProperty = tp.optString("kcxz")
+                        item.courseCategory = tp.optString("kclb", tp.optString("kclbmc", ""))
+                        item.termName = tp.optString("xnxq", term.yearCode + term.termCode)
+                        item.assessMethod = tp.optString("khfs", "")
+                        result.add(item)
+                    }
+                    val summary = fetchScoreSummary(token) ?: extractScoreSummary(jo)
+                    res.postValue(DataState(ScoreQueryResult(result, summary)))
+                } ?: run {
+                    res.postValue(DataState(DataState.STATE.FETCH_FAILED))
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                res.postValue(DataState(DataState.STATE.FETCH_FAILED, e.message))
+            }
+        }.start()
+        return res
+    }
+
+    private fun fetchScoreSummary(token: EASToken): ScoreSummary? {
+        return try {
+            val body = """{"type":"json","ksxnxq":"-1-1","jsxnxq":"-1-1","pylx":"${token.getStudentType()}"}"""
+            val resp = jsonPost(token, "/app/cjgl/xfj", body, rolecode = "06")
+            val jo = JsonUtils.getJsonObject(resp.body())
+            val xfj = jo?.optJSONObject("content")?.optJSONObject("xfj") ?: return null
+            val gpa = xfj.optString("XFJ", "").trim()
+            val rank = xfj.optString("RANK", "").trim()
+            val total = xfj.optString("ZYZRS", "").trim()
+            if (gpa.isBlank() && rank.isBlank() && total.isBlank()) null
+            else ScoreSummary(gpa = gpa, rank = rank, total = total)
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun extractScoreSummary(jo: JSONObject?): ScoreSummary? {
+        if (jo == null) return null
+        val gpaKeys = listOf("xfjd", "pjxfjd", "avgxfjd", "gpa", "GPA", "xuefenji")
+        val rankKeys = listOf("pm", "rank", "paiming", "pmj")
+        val totalKeys = listOf("pmrs", "rank_total", "total", "zrs", "rs")
+        val objects = buildList {
+            add(jo)
+            jo.optJSONObject("summary")?.let { add(it) }
+            jo.optJSONObject("statistics")?.let { add(it) }
+            jo.optJSONObject("data")?.let { add(it) }
+            jo.optJSONObject("extra")?.let { add(it) }
+        }
+        val gpa = objects.firstNotNullOfOrNull { findFirstString(it, gpaKeys) }.orEmpty()
+        val rank = objects.firstNotNullOfOrNull { findFirstString(it, rankKeys) }.orEmpty()
+        val total = objects.firstNotNullOfOrNull { findFirstString(it, totalKeys) }.orEmpty()
+        if (gpa.isBlank() && rank.isBlank() && total.isBlank()) return null
+        return ScoreSummary(gpa = gpa, rank = rank, total = total)
+    }
+
+    private fun findFirstString(obj: JSONObject, keys: List<String>): String? {
+        for (key in keys) {
+            val value = obj.optString(key, "").trim()
+            if (value.isNotEmpty()) return value
+        }
+        return null
+    }
+
+    // ================================================================ 教学楼列表
     override fun getTeachingBuildings(token: EASToken): LiveData<DataState<List<BuildingItem>>> {
         val result = MutableLiveData<DataState<List<BuildingItem>>>()
         Thread {
             val res = mutableListOf<BuildingItem>()
             try {
-                val r = Jsoup.connect("$hostName/pksd/queryjxlList")
-                    .cookies(token.cookies).headers(defaultRequestHeader)
-                    .method(Connection.Method.POST)
-                    .ignoreContentType(true)
-                    .header("X-Requested-With", "XMLHttpRequest")
-                    .execute()
-                val ja = JsonUtils.getJsonArray(r.body())
-                for (i in 0 until (ja?.length() ?: 0)) {
-                    val jo = ja?.optJSONObject(i)
-                    val hm = BuildingItem()
-                    hm.name = jo?.optString("MC")
-                    hm.id = jo?.optString("DM").toString()
-                    res.add(hm)
+                val resp = authedFormPost(token, "/app/commapp/queryjxllist")
+                val jo = JsonUtils.getJsonObject(resp.body())
+                val content = jo?.optJSONArray("content")
+                for (i in 0 until (content?.length() ?: 0)) {
+                    val item = content?.optJSONObject(i) ?: continue
+                    val b = BuildingItem()
+                    b.name = item.optString("MC")
+                    b.id = item.optString("DM")
+                    res.add(b)
                 }
                 result.postValue(DataState(res))
             } catch (e: Exception) {
@@ -635,6 +777,7 @@ class EASource internal constructor() : EASService {
         return result
     }
 
+    // ================================================================ 空教室查询（按天）
     override fun queryEmptyClassroom(
         token: EASToken,
         term: TermItem,
@@ -643,70 +786,52 @@ class EASource internal constructor() : EASService {
     ): LiveData<DataState<List<ClassroomItem>>> {
         val result = MutableLiveData<DataState<List<ClassroomItem>>>()
         Thread {
-            val res: MutableList<ClassroomItem> = ArrayList()
-            val sb = java.lang.StringBuilder()
-            val weekZeros = "000000000000000000000000000000000000000000000000".toCharArray()
+            val resMap = linkedMapOf<String, ClassroomItem>()
             try {
-                for (i in weeks.indices) {
-                    sb.append(weeks[i])
-                    weekZeros[weeks[i].toInt()] = '1'
-                    if (i != weeks.size - 1) sb.append(",")
+                val week = (weeks.firstOrNull()?.trim() ?: "").ifBlank { "1" }
+                val dates = resolveWeekDates(token, term, week)
+                val fallbackDate = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+                    .format(Calendar.getInstance().time)
+                val datePairs = if (dates.isNotEmpty()) {
+                    dates.mapIndexed { index, d -> index + 1 to d }
+                } else {
+                    listOf(1 to fallbackDate)
                 }
-            } catch (e: java.lang.Exception) {
-                e.printStackTrace()
-            }
-            try {
-                val r = Jsoup.connect("$hostName/cdkb/querycdzyleftzhou")
-                    .cookies(token.cookies).headers(defaultRequestHeader)
-                    .method(Connection.Method.POST)
-                    .ignoreContentType(true)
-                    .header("X-Requested-With", "XMLHttpRequest")
-                    .data("qsjsz", sb.toString())
-                    .data("pxn", term.yearCode)
-                    .data("pxq", term.termCode)
-                    .data("jxl", building.id)
-                    .data("zc", String(weekZeros))
-                    .execute()
-                val ja = JsonUtils.getJsonObject(r.body())?.optJSONArray("list")
-                for (i in 0 until (ja?.length() ?: 0)) {
-                    val classroom = ClassroomItem()
-                    val jo = ja?.optJSONObject(i)
-                    classroom.name = jo?.optString("MC").toString()
-                    classroom.id = jo?.optString("DM").toString()
-                    classroom.capacity = try {
-                        jo?.optString("ZWS")?.toInt() ?: 0
-                    } catch (e: Exception) {
-                        0
-                    }
-                    classroom.specialClassroom = jo?.optString("SFJTJS")
-//                hm.addProperty("jtjs", )
-//                hm.addProperty("kj", jo?.optString("SFKJ"))
-                    res.add(classroom)
-                }
-                val r2 = Jsoup.connect("$hostName/cdkb/querycdzyrightzhou")
-                    .cookies(token.cookies).headers(defaultRequestHeader)
-                    .method(Connection.Method.POST)
-                    .ignoreContentType(true)
-                    .header("X-Requested-With", "XMLHttpRequest")
-                    .data("qsjsz", sb.toString())
-                    .data("pxn", term.yearCode)
-                    .data("pxq", term.termCode)
-                    .data("jxl", building.id)
-                    .data("zc", String(weekZeros))
-                    .execute()
-                val jar = JsonUtils.getJsonArray(r2.body())
-                for (i in 0 until (jar?.length() ?: 0)) {
-                    val jo = jar?.optJSONObject(i)
-                    for (j in res) {
-                        if (j.id == jo?.optString("CDDM")) {
-                            jo.remove("CDDM")
-                            j.scheduleList.add(jo)
-                            break
+
+                for ((dow, date) in datePairs) {
+                    val resp = authedFormPost(
+                        token, "/app/kbrcbyapp/querycdzyxx",
+                        mapOf("nyr" to date, "jxl" to building.id)
+                    )
+                    val jo = JsonUtils.getJsonObject(resp.body())
+                    val content = jo?.optJSONArray("content")
+                    for (i in 0 until (content?.length() ?: 0)) {
+                        val item = content?.optJSONObject(i) ?: continue
+                        val name = item.optString("CDMC").trim()
+                        if (name.isBlank()) continue
+                        val classroom = resMap.getOrPut(name) {
+                            ClassroomItem().apply {
+                                this.name = name
+                                this.id = name
+                            }
+                        }
+                        for (dj in 1..6) {
+                            val v = item.optString("DJ$dj", "0").trim()
+                            if (v.isEmpty() || v == "0") continue
+                            val start = (dj - 1) * 2 + 1
+                            val end = start + 1
+                            for (period in start..end) {
+                                val scheduleJson = JSONObject()
+                                scheduleJson.put("XQJ", dow)
+                                scheduleJson.put("XJ", period)
+                                scheduleJson.put("PKBJ", "占用")
+                                classroom.scheduleList.add(scheduleJson)
+                            }
                         }
                     }
                 }
-                result.postValue(DataState(res))
-            } catch (e: IOException) {
+                result.postValue(DataState(resMap.values.toList()))
+            } catch (e: Exception) {
                 e.printStackTrace()
                 result.postValue(DataState(DataState.STATE.FETCH_FAILED))
             }
@@ -714,40 +839,76 @@ class EASource internal constructor() : EASService {
         return result
     }
 
-    /**
-     * 获取考试信息
-     */
+    private fun resolveWeekDates(token: EASToken, term: TermItem, week: String): List<String> {
+        return try {
+            val kbBody = """{"xn":"${term.yearCode}","xq":"${term.termCode}","zc":"$week","type":"json"}"""
+            val kbResp = jsonPost(token, "/app/Kbcx/query", kbBody)
+            val kbJo = JsonUtils.getJsonObject(kbResp.body())
+            val contentArr = kbJo?.optJSONArray("content") ?: return emptyList()
+            for (i in 0 until contentArr.length()) {
+                val obj = contentArr.optJSONObject(i) ?: continue
+                val rqList = obj.optJSONArray("rqList") ?: continue
+                val dates = mutableListOf<String>()
+                for (j in 0 until rqList.length()) {
+                    val rq = rqList.optJSONObject(j)?.optString("RQ")?.trim().orEmpty()
+                    if (rq.isNotBlank()) dates.add(rq)
+                }
+                if (dates.isNotEmpty()) return dates
+            }
+            emptyList()
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
+
+
+    // ================================================================ 考试信息（暂未找到新接口）
     override fun getExamItems(token: EASToken): LiveData<DataState<List<ExamItem>>> {
         val res = MutableLiveData<DataState<List<ExamItem>>>()
         Thread {
-            val result: MutableList<ExamItem> = mutableListOf()
+            // TODO: 补充新版考试查询接口
+            res.postValue(DataState(emptyList(), DataState.STATE.SUCCESS))
+        }.start()
+        return res
+    }
+
+    // ================================================================ 选课（加入购物车 = 实际选课动作）
+    fun selectCourse(
+        token: EASToken,
+        term: TermItem,
+        courseId: String,
+        poolCode: String = "bx-b-b"
+    ): LiveData<DataState<String>> {
+        val res = MutableLiveData<DataState<String>>()
+        Thread {
             try {
-                val r = Jsoup.connect("$hostName/component/queryKsxxByXs")
-                    .timeout(timeout)
-                    .cookies(token.cookies)
-                    .headers(defaultRequestHeader)
-                    .header("X-Requested-With", "XMLHttpRequest")
-                    .ignoreContentType(true)
-                    .ignoreHttpErrors(true)
-                    .method(Connection.Method.POST).execute()
-                val json = r.body()
-                val content = JsonUtils.getJsonArray(json)
-                content?.let {
-                    for (i in 0 until it.length()) {
-                        val tp: JSONObject = it.optJSONObject(i)
-                        val item = ExamItem();
-                        item.campusName = tp.optString("XIAOQUBMC", "null")
-                        item.courseName = tp.optString("KCMC", "null")
-                        item.examDate = tp.optString("KSRQ2", "null")
-                        item.examLocation = tp.optString("JXCDMC", "null")
-                        item.examTime = tp.optString("KSJTSJ", "null")
-                        item.examType = tp.optString("KSSJDMC", "null")
-                        item.termName = tp.optString("XNXQMC", "null")
-                        result.add(item)
+                val body = """{"RoleCode":"01","p_pylx":"${token.getStudentType()}","p_xn":"${term.yearCode}","p_xq":"${term.termCode}","p_xkfsdm":"$poolCode","p_xktjz":"rwtjzyx","p_id":"$courseId"}"""
+                val resp = jsonPost(token, "/app/Xsxk/addGouwuche?_lang=zh_CN", body)
+                if (resp.statusCode() >= 400) {
+                    val snippet = resp.body().take(240)
+                    res.postValue(DataState(DataState.STATE.FETCH_FAILED, "HTTP ${resp.statusCode()}: $snippet"))
+                    return@Thread
+                }
+                val jo = JsonUtils.getJsonObject(resp.body())
+                val content = jo?.optJSONObject("content")
+                val jg = content?.optString("jg", "-1") ?: "-1"
+                val rawMsg = content?.optString("message")
+                var msg = if (!rawMsg.isNullOrBlank()) rawMsg else jo?.optString("msg", "").orEmpty()
+                if (rawMsg.isNullOrBlank() && msg.trim() == "操作失败") {
+                    msg = ""
+                }
+                val message = buildString {
+                    if (jg.isNotBlank()) append("jg=").append(jg)
+                    if (msg.isNotBlank()) {
+                        if (isNotEmpty()) append("，")
+                        append(msg)
                     }
-                    res.postValue(DataState(result))
-                } ?: run {
-                    res.postValue(DataState(DataState.STATE.FETCH_FAILED))
+                    if (isEmpty()) append("未知错误")
+                }
+                if (jg != "-1") {
+                    res.postValue(DataState(message, DataState.STATE.SUCCESS))
+                } else {
+                    res.postValue(DataState(DataState.STATE.FETCH_FAILED, message))
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -757,11 +918,42 @@ class EASource internal constructor() : EASService {
         return res
     }
 
-    init {
-        defaultRequestHeader = HashMap()
-        defaultRequestHeader["Accept"] = "*/*"
-        defaultRequestHeader["Connection"] = "keep-alive"
-        defaultRequestHeader["User-Agent"] =
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/79.0.3945.88 Safari/537.36"
+    // ================================================================ 查询可选课程列表
+    fun getAvailableCourses(
+        token: EASToken,
+        term: TermItem,
+        poolCode: String = "bx-b-b",
+        page: Int = 1,
+        pageSize: Int = 20
+    ): LiveData<DataState<List<TermSubject>>> {
+        val res = MutableLiveData<DataState<List<TermSubject>>>()
+        Thread {
+            val result = mutableListOf<TermSubject>()
+            try {
+                val body = """{"RoleCode":"01","p_pylx":"${token.getStudentType()}","p_xn":"${term.yearCode}","p_xq":"${term.termCode}","p_xnxq":"${term.getCode()}","p_gjz":"","p_kc_gjz":"","p_xkfsdm":"$poolCode","pageNum":$page,"pageSize":$pageSize}"""
+                val resp = jsonPost(token, "/app/Xsxk/queryKxrw?_lang=zh_CN", body)
+                val jo = JsonUtils.getJsonObject(resp.body())
+                val list = jo?.optJSONArray("yxkcList")
+                list?.let {
+                    for (i in 0 until it.length()) {
+                        val item = it.optJSONObject(i) ?: continue
+                        val s = TermSubject()
+                        val rawCode = item.optString("kcdm")
+                        s.code = CourseCodeUtils.normalize(rawCode) ?: rawCode
+                        s.name = item.optString("kcmc", "")
+                        s.school = item.optString("kkyxmc")
+                        s.credit = item.optString("xf").toFloatOrNull() ?: 0f
+                        s.key = item.optString("id")  // p_id 用于选课
+                        s.field = item.optString("kclbmc")
+                        result.add(s)
+                    }
+                }
+                res.postValue(DataState(result))
+            } catch (e: Exception) {
+                e.printStackTrace()
+                res.postValue(DataState(DataState.STATE.FETCH_FAILED, e.message))
+            }
+        }.start()
+        return res
     }
 }

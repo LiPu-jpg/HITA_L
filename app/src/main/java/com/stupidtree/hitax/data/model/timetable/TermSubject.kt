@@ -1,6 +1,7 @@
 package com.stupidtree.hitax.data.model.timetable
 
 import androidx.room.Entity
+import androidx.room.Ignore
 import androidx.room.PrimaryKey
 import com.stupidtree.hitax.utils.ColorTools
 import java.sql.Timestamp
@@ -32,6 +33,8 @@ class TermSubject{
             : String? = null
     var key //适配教务的课程标识
             : String? = null
+    @Ignore
+    var teacher: String? = null
     var createdAt //创建时间
             : Timestamp = Timestamp(System.currentTimeMillis())
     var color:Int = ColorTools.randomColorMaterial()

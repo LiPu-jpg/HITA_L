@@ -6,6 +6,7 @@ import com.google.gson.Gson
  * 考试条目：每个对应一条考试
  */
 class ExamItem {
+    var memoId:String = java.util.UUID.randomUUID().toString()
     var courseName:String? = null
     var examDate:String? = null
     var examTime:String? = null

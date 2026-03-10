@@ -14,7 +14,8 @@ import com.stupidtree.hitax.ui.eas.exam.ExamActivity
 import com.stupidtree.hitax.ui.eas.imp.ImportTimetableActivity
 import com.stupidtree.hitax.ui.eas.login.PopUpLoginEAS
 import com.stupidtree.hitax.ui.eas.score.ScoreInquiryActivity
-import com.stupidtree.hitax.ui.news.lecture.ActivityLecture
+import com.stupidtree.hitax.utils.ActivityUtils.CourseResourceMode
+import com.stupidtree.hitax.ui.snatch.CourseSnatchActivity
 import com.stupidtree.hitax.utils.ActivityUtils
 import com.stupidtree.hitax.utils.ImageUtils
 import com.stupidtree.stupiduser.data.repository.LocalUserRepository
@@ -40,14 +41,6 @@ class NavigationFragment : BaseFragment<NavigationViewModel, FragmentNavigationB
                 binding?.timetableSubtitle?.text = getString(R.string.timetable_count_format, it)
             }
 
-        }
-        viewModel.unreadMessageLiveData.observe(this) {
-            if (it.data ?: 0 > 0) {
-                binding?.messageNum?.visibility = View.VISIBLE
-                binding?.messageNum?.text = it.data.toString()
-            } else {
-                binding?.messageNum?.visibility = View.GONE
-            }
         }
         binding?.cardTimetable?.setOnClickListener {
             ActivityUtils.startTimetableManager(requireContext())
@@ -133,16 +126,14 @@ class NavigationFragment : BaseFragment<NavigationViewModel, FragmentNavigationB
                 }
             )
         }
-        binding?.cardNews?.setOnClickListener {
-            ActivityUtils.startThetaActivity(requireActivity())
+        binding?.cardCourseLookup?.setOnClickListener {
+            ActivityUtils.startCourseResourceSearchActivity(requireContext(), mode = CourseResourceMode.VIEW)
         }
-        binding?.search?.setOnClickListener {
-            binding?.search?.let { v ->
-                ActivityUtils.startSearchActivity(requireActivity(), v)
-            }
+        binding?.cardCourseSubmitPr?.setOnClickListener {
+            ActivityUtils.startCourseResourceSearchActivity(requireContext(), mode = CourseResourceMode.SUBMIT)
         }
-        binding?.cardLecture?.setOnClickListener {
-            ActivityUtils.startActivity(requireContext(),ActivityLecture::class.java)
+        binding?.cardCourseSnatch?.setOnClickListener {
+            ActivityUtils.startActivity(requireContext(), CourseSnatchActivity::class.java)
         }
     }
 
@@ -180,12 +171,28 @@ class NavigationFragment : BaseFragment<NavigationViewModel, FragmentNavigationB
                 }
             } else {
                 //未登录的信息显示
-                binding?.username?.setText(R.string.not_log_in)
-                binding?.nickname?.setText(R.string.log_in_first)
+                val easToken = activity?.application?.let { EASRepository.getInstance(it).getEasToken() }
+                if (easToken?.isLogin() == true) {
+                    binding?.username?.text = easToken.name?.ifBlank { easToken.username }
+                        ?: easToken.username
+                    binding?.nickname?.text = easToken.stuId?.ifBlank { easToken.username } ?: ""
+                } else {
+                    binding?.username?.setText(R.string.eas_account_not_logged_in_title)
+                    binding?.nickname?.setText(R.string.eas_account_not_logged_in_subtitle)
+                }
                 binding?.avatar?.setImageResource(R.drawable.place_holder_avatar)
                 binding?.userCard?.setOnClickListener {
-                    ActivityUtils.startWelcomeActivity(
-                        requireContext()
+                    ActivityUtils.showEasVerifyWindow<Activity>(
+                        requireContext(),
+                        directTo = null,
+                        onResponseListener = object : PopUpLoginEAS.OnResponseListener {
+                            override fun onSuccess(window: PopUpLoginEAS) {
+                                window.dismiss()
+                                refreshEasState()
+                            }
+
+                            override fun onFailed(window: PopUpLoginEAS) {}
+                        }
                     )
                 }
             }

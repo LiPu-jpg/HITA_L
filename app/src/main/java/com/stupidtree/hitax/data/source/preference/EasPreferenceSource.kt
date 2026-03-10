@@ -18,9 +18,12 @@ class EasPreferenceSource(context: Context) {
 
     fun saveEasToken(token: EASToken) {
         preference.edit()
+            .putString("accessToken", token.accessToken)
+            .putString("refreshToken", token.refreshToken)
             .putString("username", token.username)
             .putString("password", token.password)
             .putString("cookies", Gson().toJson(token.cookies))
+            .putString("name", token.name)
             .putString("stutype", token.getStudentType())
             .putString("picture", token.picture)
             .putString("id", token.id)
@@ -36,13 +39,20 @@ class EasPreferenceSource(context: Context) {
 
 
     fun clearEasToken() {
-        preference.edit().putString("cookies", null).apply()
+        preference.edit()
+            .putString("accessToken", null)
+            .putString("refreshToken", null)
+            .putString("cookies", null)
+            .apply()
     }
 
     fun getEasToken(): EASToken {
         val result = EASToken()
+        result.accessToken = preference.getString("accessToken", null)
+        result.refreshToken = preference.getString("refreshToken", null)
         result.username = preference.getString("username", null)
         result.password = preference.getString("password", null)
+        result.name = preference.getString("name", null)
         result.stutype = if (preference.getString("stutype", "1")
                 .equals("1")
         ) EASToken.TYPE.UNDERGRAD else EASToken.TYPE.GRAD
@@ -55,9 +65,15 @@ class EasPreferenceSource(context: Context) {
         result.sfxsx = preference.getString("sfxsx", null)
         result.email = preference.getString("email", null)
         result.phone = preference.getString("phone", null)
-        val map = Gson().fromJson(preference.getString("cookies", "{}"), HashMap::class.java)
+        val map = runCatching {
+            Gson().fromJson(preference.getString("cookies", "{}"), HashMap::class.java)
+        }.getOrNull() ?: HashMap<Any, Any>()
         for (e in map.entries) {
-            result.cookies[e.key.toString()] = e.value.toString()
+            val key = e.key?.toString().orEmpty()
+            val value = e.value?.toString().orEmpty()
+            if (key.isNotBlank()) {
+                result.cookies[key] = value
+            }
         }
         return result
     }

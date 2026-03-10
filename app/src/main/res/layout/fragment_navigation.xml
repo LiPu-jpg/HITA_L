@@ -12,30 +12,6 @@
         android:layout_height="wrap_content"
         android:orientation="vertical">
 
-        <LinearLayout
-            android:id="@+id/search"
-            android:layout_width="match_parent"
-            android:layout_height="36dp"
-            android:layout_marginStart="16dp"
-            android:layout_marginTop="8dp"
-            android:layout_marginEnd="16dp"
-            android:layout_marginBottom="8dp"
-            android:background="@drawable/element_rounded_bar_grey_light_24"
-            android:backgroundTint="?attr/backgroundColorBar"
-            android:backgroundTintMode="src_in"
-            android:clickable="true"
-            android:foreground="?attr/selectableItemBackgroundBorderless"
-            android:transitionName="search"
-            app:layout_scrollFlags="scroll|enterAlwaysCollapsed">
-
-            <ImageView
-                android:layout_width="24dp"
-                android:layout_height="24dp"
-                android:layout_gravity="center|start"
-                android:layout_marginStart="8dp"
-                app:srcCompat="@drawable/ic_baseline_search_24" />
-        </LinearLayout>
-
         <androidx.cardview.widget.CardView
             android:id="@+id/user_card"
             android:layout_width="match_parent"
@@ -655,11 +631,160 @@
             android:layout_marginTop="16dp"
             android:layout_marginEnd="16dp"
             android:layout_marginBottom="8dp"
-            android:text="@string/navi_campus_title"
+            android:text="@string/navi_course_resource_title"
             android:textColor="?attr/textColorPrimary"
             android:textSize="18sp"
             android:textStyle="bold"
             android:visibility="visible" />
+
+        <androidx.cardview.widget.CardView
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:layout_marginStart="16dp"
+            android:layout_marginTop="8dp"
+            android:layout_marginEnd="16dp"
+            android:layout_marginBottom="8dp"
+            android:focusable="true"
+            app:cardBackgroundColor="?attr/backgroundColorSecond"
+            app:cardCornerRadius="16dp"
+            app:cardElevation="0dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:layout_marginTop="8dp"
+                android:layout_marginBottom="8dp"
+                android:orientation="vertical">
+
+                <LinearLayout
+                    android:id="@+id/card_course_lookup"
+                    android:layout_width="match_parent"
+                    android:layout_height="64dp"
+                    android:foreground="?attr/selectableItemBackgroundBorderless"
+                    android:orientation="horizontal"
+                    android:paddingStart="16dp"
+                    android:paddingEnd="8dp">
+
+                    <ImageView
+                        android:layout_width="32dp"
+                        android:layout_height="32dp"
+                        android:layout_gravity="center"
+                        app:srcCompat="@drawable/ic_baseline_search_24"
+                        app:tint="?attr/colorPrimary" />
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="match_parent"
+                        android:layout_marginStart="16dp"
+                        android:layout_weight="1"
+                        android:gravity="center|start"
+                        android:orientation="vertical">
+
+                        <com.stupidtree.hitax.ui.widgets.FocusTextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:singleLine="true"
+                            android:text="@string/navi_course_lookup"
+                            android:textColor="?attr/textColorPrimary"
+                            android:textSize="16sp" />
+
+                        <com.stupidtree.hitax.ui.widgets.FocusTextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="2dp"
+                            android:singleLine="true"
+                            android:text="@string/navi_course_lookup_sub"
+                            android:textColor="?attr/textColorSecondary"
+                            android:textSize="12sp" />
+
+                    </LinearLayout>
+
+                    <ImageView
+                        android:layout_width="24dp"
+                        android:layout_height="24dp"
+                        android:layout_gravity="center"
+                        android:tintMode="src_in"
+                        app:srcCompat="@drawable/ic_baseline_keyboard_arrow_right_24"
+                        app:tint="?attr/colorPrimaryDisabled" />
+
+                </LinearLayout>
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="0.5dp"
+                    android:layout_marginStart="16dp"
+                    android:layout_marginEnd="16dp"
+                    android:background="?attr/colorPrimaryDisabled" />
+
+                <LinearLayout
+                    android:id="@+id/card_course_submit_pr"
+                    android:layout_width="match_parent"
+                    android:layout_height="64dp"
+                    android:foreground="?attr/selectableItemBackgroundBorderless"
+                    android:orientation="horizontal"
+                    android:paddingStart="16dp"
+                    android:paddingEnd="8dp">
+
+                    <ImageView
+                        android:layout_width="32dp"
+                        android:layout_height="32dp"
+                        android:layout_gravity="center"
+                        app:srcCompat="@drawable/ic_baseline_edit_24"
+                        app:tint="?attr/colorPrimary" />
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="match_parent"
+                        android:layout_marginStart="16dp"
+                        android:layout_weight="1"
+                        android:gravity="center|start"
+                        android:orientation="vertical">
+
+                        <com.stupidtree.hitax.ui.widgets.FocusTextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:singleLine="true"
+                            android:text="@string/navi_course_submit_pr"
+                            android:textColor="?attr/textColorPrimary"
+                            android:textSize="16sp" />
+
+                        <com.stupidtree.hitax.ui.widgets.FocusTextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="2dp"
+                            android:singleLine="true"
+                            android:text="@string/navi_course_submit_pr_sub"
+                            android:textColor="?attr/textColorSecondary"
+                            android:textSize="12sp" />
+
+                    </LinearLayout>
+
+                    <ImageView
+                        android:layout_width="24dp"
+                        android:layout_height="24dp"
+                        android:layout_gravity="center"
+                        android:tintMode="src_in"
+                        app:srcCompat="@drawable/ic_baseline_keyboard_arrow_right_24"
+                        app:tint="?attr/colorPrimaryDisabled" />
+
+                </LinearLayout>
+
+            </LinearLayout>
+
+        </androidx.cardview.widget.CardView>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:layout_marginStart="26dp"
+            android:layout_marginTop="16dp"
+            android:layout_marginEnd="16dp"
+            android:layout_marginBottom="8dp"
+            android:text="@string/navi_course_snatch_title"
+            android:textColor="?attr/textColorPrimary"
+            android:textSize="18sp"
+            android:textStyle="bold" />
 
         <androidx.cardview.widget.CardView
             android:layout_width="match_parent"
@@ -681,134 +806,55 @@
                 android:orientation="vertical">
 
                 <LinearLayout
+                    android:id="@+id/card_course_snatch"
                     android:layout_width="match_parent"
-                    android:layout_height="match_parent"
-                    android:orientation="horizontal">
+                    android:layout_height="64dp"
+                    android:foreground="?attr/selectableItemBackgroundBorderless"
+                    android:orientation="horizontal"
+                    android:paddingStart="16dp"
+                    android:paddingEnd="8dp">
+
+                    <ImageView
+                        android:layout_width="32dp"
+                        android:layout_height="32dp"
+                        android:layout_gravity="center"
+                        app:srcCompat="@drawable/ic_baseline_access_alarm_24"
+                        app:tint="?attr/colorPrimary" />
 
                     <LinearLayout
-                        android:id="@+id/card_news"
-                        android:layout_width="match_parent"
-                        android:layout_height="64dp"
-                        android:layout_marginEnd="8dp"
+                        android:layout_width="0dp"
+                        android:layout_height="match_parent"
+                        android:layout_marginStart="16dp"
                         android:layout_weight="1"
-                        android:foreground="?attr/selectableItemBackgroundBorderless"
-                        android:orientation="horizontal"
-                        android:padding="4dp"
-                        android:paddingStart="16dp"
-                        android:paddingEnd="0dp">
+                        android:gravity="center|start"
+                        android:orientation="vertical">
 
-                        <ImageView
-                            android:layout_width="32dp"
-                            android:layout_height="32dp"
-                            android:layout_gravity="center"
-                            android:background="@drawable/ic_bc_theta"
-                            android:padding="3dp"
-                            app:srcCompat="@drawable/ic_logo_theta" />
+                        <com.stupidtree.hitax.ui.widgets.FocusTextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:singleLine="true"
+                            android:text="@string/navi_course_snatch"
+                            android:textColor="?attr/textColorPrimary"
+                            android:textSize="16sp" />
 
-                        <LinearLayout
-                            android:layout_width="0dp"
-                            android:layout_height="match_parent"
-                            android:layout_marginStart="16dp"
-                            android:layout_weight="1"
-                            android:gravity="center|start"
-                            android:orientation="vertical"
-                            android:paddingBottom="6dp">
-
-                            <com.stupidtree.hitax.ui.widgets.FocusTextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:layout_gravity="center|start"
-                                android:layout_marginTop="8dp"
-                                android:singleLine="true"
-                                android:text="@string/community_name"
-                                android:textColor="?attr/textColorPrimary"
-                                android:textSize="16sp" />
-
-                            <com.stupidtree.hitax.ui.widgets.FocusTextView
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:layout_gravity="center|start"
-                                android:layout_marginTop="2dp"
-                                android:singleLine="true"
-                                android:text="@string/prompt_import"
-                                android:textColor="?attr/textColorPrimary"
-                                android:textSize="12sp"
-                                android:visibility="gone" />
-                        </LinearLayout>
-
-                        <TextView
-                            android:id="@+id/message_num"
-                            android:layout_width="24dp"
-                            android:layout_height="24dp"
-                            android:layout_gravity="center"
-                            android:layout_marginStart="8dp"
-                            android:layout_marginEnd="8dp"
-                            android:background="@drawable/element_round_primary"
-                            android:gravity="center"
-                            android:text="12"
-                            android:textColor="@android:color/white"
-                            android:textSize="12dp"
-                            android:visibility="gone" />
-
-                        <ImageView
-                            android:layout_width="24dp"
-                            android:layout_height="24dp"
-                            android:layout_gravity="center"
-                            android:tintMode="src_in"
-                            app:srcCompat="@drawable/ic_baseline_keyboard_arrow_right_24"
-                            app:tint="?attr/colorPrimaryDisabled" />
+                        <com.stupidtree.hitax.ui.widgets.FocusTextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="2dp"
+                            android:singleLine="true"
+                            android:text="@string/navi_course_snatch_sub"
+                            android:textColor="?attr/textColorSecondary"
+                            android:textSize="12sp" />
 
                     </LinearLayout>
 
-                    <LinearLayout
-                        android:id="@+id/card_lecture"
-                        android:layout_width="match_parent"
-                        android:layout_height="64dp"
-                        android:layout_marginStart="8dp"
-                        android:layout_marginEnd="8dp"
-                        android:layout_weight="1"
-                        android:foreground="?attr/selectableItemBackgroundBorderless"
-                        android:orientation="horizontal"
-                        android:padding="4dp"
-                        android:paddingStart="16dp"
-                        android:paddingEnd="0dp">
-
-                        <ImageView
-                            android:layout_width="32dp"
-                            android:layout_height="32dp"
-                            android:layout_gravity="center"
-                            app:srcCompat="@drawable/ic_bc_news" />
-
-                        <LinearLayout
-                            android:layout_width="0dp"
-                            android:layout_height="match_parent"
-                            android:layout_marginStart="16dp"
-                            android:layout_weight="1"
-                            android:gravity="center|start"
-                            android:orientation="vertical"
-                            android:paddingBottom="6dp">
-
-                            <com.stupidtree.hitax.ui.widgets.FocusTextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:layout_gravity="center|start"
-                                android:layout_marginTop="8dp"
-                                android:singleLine="true"
-                                android:text="@string/lecture_title"
-                                android:textColor="?attr/textColorPrimary"
-                                android:textSize="16sp" />
-
-                        </LinearLayout>
-
-                        <ImageView
-                            android:layout_width="24dp"
-                            android:layout_height="24dp"
-                            android:layout_gravity="center"
-                            android:tintMode="src_in"
-                            app:srcCompat="@drawable/ic_baseline_keyboard_arrow_right_24"
-                            app:tint="?attr/colorPrimaryDisabled" />
-
-                    </LinearLayout>
+                    <ImageView
+                        android:layout_width="24dp"
+                        android:layout_height="24dp"
+                        android:layout_gravity="center"
+                        android:tintMode="src_in"
+                        app:srcCompat="@drawable/ic_baseline_keyboard_arrow_right_24"
+                        app:tint="?attr/colorPrimaryDisabled" />
 
                 </LinearLayout>
 

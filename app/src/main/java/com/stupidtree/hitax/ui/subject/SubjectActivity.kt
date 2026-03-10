@@ -17,6 +17,7 @@ import com.stupidtree.hitax.utils.ActivityUtils
 import com.stupidtree.hitax.utils.EditModeHelper
 import com.stupidtree.hitax.utils.EventsUtils
 import com.stupidtree.hitax.utils.TimeTools
+import com.stupidtree.hitax.utils.CourseCodeUtils
 import com.stupidtree.style.base.BaseActivity
 import com.stupidtree.style.base.BaseListAdapter
 import com.stupidtree.style.widgets.PopUpSelectableList
@@ -192,12 +193,18 @@ class SubjectActivity : BaseActivity<SubjectViewModel, ActivitySubjectBinding>()
         }
         binding.cardTeacher.onCardClickListener = View.OnClickListener {
             viewModel.teachersLiveData.value?.let {
-                val sb = it.joinToString(separator = ",")
-                ActivityUtils.searchFor(
-                    getThis(), sb, ActivityUtils.SearchType.TEACHER
+                val keyword = it.firstOrNull() ?: return@let
+                ActivityUtils.startCourseResourceSearchActivity(
+                    getThis(), keyword, ActivityUtils.CourseResourceMode.VIEW
                 )
             }
 
+        }
+        binding.cardTeacher.setOnLongClickListener {
+            viewModel.teachersLiveData.value?.firstOrNull()?.let { teacher ->
+                ActivityUtils.startTeacherHomepageSearch(getThis(), teacher)
+            }
+            true
         }
         binding.cardCredit.onCardClickListener = View.OnClickListener {
 
@@ -222,6 +229,40 @@ class SubjectActivity : BaseActivity<SubjectViewModel, ActivitySubjectBinding>()
                 ActivityUtils.startTimetableDetailActivity(this, it.id)
             }
 
+        }
+        binding.buttonCourseResource.setOnClickListener {
+            viewModel.subjectLiveData.value?.let { subject ->
+                val normalizedCode = CourseCodeUtils.normalize(subject.code)
+                val repoName = normalizedCode?.takeIf { it.isNotBlank() }
+                    ?: subject.code?.takeIf { it.isNotBlank() }
+                    ?: subject.name
+                ActivityUtils.startCourseReadmeActivity(
+                    getThis(),
+                    repoName,
+                    subject.name,
+                    normalizedCode?.takeIf { it.isNotBlank() }
+                        ?: subject.code?.takeIf { it.isNotBlank() }
+                        ?: repoName,
+                    "normal",
+                )
+            }
+        }
+        binding.buttonCourseContribute.setOnClickListener {
+            viewModel.subjectLiveData.value?.let { subject ->
+                val normalizedCode = CourseCodeUtils.normalize(subject.code)
+                val repoName = normalizedCode?.takeIf { it.isNotBlank() }
+                    ?: subject.code?.takeIf { it.isNotBlank() }
+                    ?: subject.name
+                ActivityUtils.startCourseContributionActivity(
+                    getThis(),
+                    repoName,
+                    subject.name,
+                    normalizedCode?.takeIf { it.isNotBlank() }
+                        ?: subject.code?.takeIf { it.isNotBlank() }
+                        ?: repoName,
+                    "normal",
+                )
+            }
         }
     }
 

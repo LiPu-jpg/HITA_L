@@ -3,6 +3,7 @@ package com.stupidtree.hitax.ui.eas.imp
 import android.os.Bundle
 import android.view.HapticFeedbackConstants
 import android.view.View
+import android.widget.Toast
 import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.google.android.material.appbar.AppBarLayout
@@ -158,6 +159,12 @@ class ImportTimetableActivity :
                 binding.buttonImport, it.state == DataState.STATE.SUCCESS,
                 successStr = R.string.import_success, failStr = R.string.import_failed
             )
+            if (it.state != DataState.STATE.SUCCESS) {
+                val msg = it.message?.trim().orEmpty()
+                if (msg.isNotEmpty()) {
+                    Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
+                }
+            }
             //通知小组件
             WidgetUtils.sendRefreshToAll(this)
 //            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {

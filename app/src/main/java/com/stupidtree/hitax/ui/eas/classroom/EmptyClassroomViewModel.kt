@@ -20,9 +20,20 @@ class EmptyClassroomViewModel(application: Application) : EASViewModel(applicati
 
 
     private val pageController = MutableLiveData<Trigger>()
-    val termsLiveData: LiveData<DataState<List<TermItem>>> =pageController.switchMap {
-            return@switchMap easRepository.getAllTerms()
+    val termsLiveData: LiveData<DataState<List<TermItem>>> = pageController.switchMap {
+        return@switchMap easRepository.getAllTerms().map { state ->
+            val data = state.data
+            if (state.state != DataState.STATE.SUCCESS || data.isNullOrEmpty()) {
+                return@map state
+            }
+            val currentYear = java.util.Calendar.getInstance().get(java.util.Calendar.YEAR).toString()
+            val filtered = data.filter { term ->
+                term.yearCode.contains(currentYear) || term.yearName.contains(currentYear) || term.name.contains(currentYear)
+            }
+            val finalList = if (filtered.isNotEmpty()) filtered else data
+            DataState(finalList, state.state)
         }
+    }
     val buildingsLiveData: LiveData<DataState<List<BuildingItem>>> = pageController.switchMap {
             return@switchMap easRepository.getTeachingBuildings()
         }

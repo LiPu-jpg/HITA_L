@@ -63,14 +63,12 @@ class UserAgreementDialog :
         binding?.tabs?.setupWithViewPager(binding?.pager)
         binding?.pager?.adapter = adapter
         viewModel.userAgreementPageLiveData.observe(this){
-            it.data?.let{
-                (views[0]?.findViewById(R.id.text) as TextView?)?.text = Html.fromHtml(it)
-            }
+            val content = it.data?.takeIf { s -> s.isNotBlank() } ?: getString(R.string.user_agreement)
+            (views[0]?.findViewById(R.id.text) as TextView?)?.text = Html.fromHtml(content)
         }
         viewModel.privacyPolicyPageLiveData.observe(this){
-            it.data?.let{
-                (views[1]?.findViewById(R.id.text) as TextView?)?.text = Html.fromHtml(it)
-            }
+            val content = it.data?.takeIf { s -> s.isNotBlank() } ?: getString(R.string.privacy_policy)
+            (views[1]?.findViewById(R.id.text) as TextView?)?.text = Html.fromHtml(content)
         }
     }
 

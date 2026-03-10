@@ -14,8 +14,8 @@ android {
         minSdkVersion 23
         targetSdk 33
         compileSdk 35
-        versionCode 20220916
-        versionName "1.2.1"
+        versionCode 20260310
+        versionName "1.2.2"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         javaCompileOptions {
@@ -24,6 +24,13 @@ android {
                                      "$projectDir/schemas".toString()]
             }
         }
+
+        buildConfigField "String", "HOA_BASE_URL", '"https://liulipule.com/"'
+        buildConfigField "String", "HOA_API_KEY", '""'
+        buildConfigField "String", "UPDATE_URL", '"https://github.com/LiPu-jpg/HITA_L/releases/latest"'
+        buildConfigField "String", "UPDATE_VERSION_NAME", '"1.2.2"'
+        buildConfigField "long", "UPDATE_VERSION_CODE", "20260310L"
+        buildConfigField "String", "UPDATE_LOG", '""'
     }
 //    viewBinding{
 //        enabled = true
@@ -140,4 +147,9 @@ dependencies {
 
     //爆炸效果
     implementation 'tyrantgit:explosionfield:1.0.1'
+
+    // WorkManager for periodic course-snatching
+    implementation 'androidx.work:work-runtime-ktx:2.9.1'
+    implementation 'io.noties.markwon:core:4.6.2'
+    implementation 'io.noties.markwon:linkify:4.6.2'
 }

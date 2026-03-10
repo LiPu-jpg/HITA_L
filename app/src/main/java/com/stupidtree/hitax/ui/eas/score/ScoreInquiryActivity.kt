@@ -60,6 +60,18 @@ class ScoreInquiryActivity :
                 View.VISIBLE
             }
         }
+        viewModel.scoreSummaryLiveData.observe(this) { summary ->
+            val gpaRaw = summary?.gpa?.ifBlank { "-" } ?: "-"
+            val gpa = gpaRaw.toDoubleOrNull()?.let { String.format("%.2f", it) } ?: gpaRaw
+            val rank = summary?.rank?.ifBlank { "-" } ?: "-"
+            val total = summary?.total?.ifBlank { "" } ?: ""
+            binding.scoreGpaValue.text = gpa
+            binding.scoreRankValue.text = if (total.isNotBlank() && rank.isNotBlank() && rank != "-") {
+                "$rank / $total"
+            } else {
+                rank
+            }
+        }
         viewModel.selectedTestTypeLiveData.observe(this) {
             it?.let {
                 binding.refresh.isRefreshing = true

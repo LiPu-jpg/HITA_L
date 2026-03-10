@@ -7,6 +7,7 @@ import android.content.SharedPreferences
 import android.net.Uri
 import android.view.View
 import android.widget.ImageView
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityOptionsCompat
 import com.stupidtree.hita.theta.ThetaActivity
@@ -14,6 +15,10 @@ import com.stupidtree.hitax.R
 import com.stupidtree.hitax.data.repository.EASRepository
 import com.stupidtree.hitax.ui.eas.login.PopUpLoginEAS
 import com.stupidtree.hitax.ui.myprofile.MyProfileActivity
+import com.stupidtree.hitax.ui.resource.CourseContributionActivity
+import com.stupidtree.hitax.ui.resource.CourseReadmeActivity
+import com.stupidtree.hitax.ui.resource.CourseResourceSearchActivity
+import com.stupidtree.hitax.ui.resource.InternalWebActivity
 import com.stupidtree.hitax.ui.news.NewsDetailActivity
 import com.stupidtree.hitax.ui.profile.ProfileActivity
 import com.stupidtree.hitax.ui.search.SearchActivity
@@ -21,12 +26,13 @@ import com.stupidtree.hitax.ui.subject.SubjectActivity
 import com.stupidtree.hitax.ui.teacher.ActivityTeacherOfficial
 import com.stupidtree.hitax.ui.timetable.detail.TimetableDetailActivity
 import com.stupidtree.hitax.ui.timetable.manager.TimetableManagerActivity
-import com.stupidtree.hitax.ui.welcome.WelcomeActivity
 import com.stupidtree.stupiduser.data.model.CheckUpdateResult
 import com.stupidtree.stupiduser.data.repository.LocalUserRepository
 import com.stupidtree.style.base.BaseActivity
 import com.stupidtree.style.widgets.PopUpText
 import com.stupidtree.style.widgets.PopUpUpdate
+import java.net.URLEncoder
+import java.nio.charset.StandardCharsets
 
 
 object ActivityUtils {
@@ -41,6 +47,8 @@ object ActivityUtils {
 
 
     enum class SearchType { TEACHER, CLASS,ARTICLE,USER }
+
+    enum class CourseResourceMode { VIEW, SUBMIT }
 
     fun searchFor(from: Context, text: String?, type: SearchType) {
         if (text.isNullOrBlank()) return
@@ -68,8 +76,21 @@ object ActivityUtils {
     }
 
     fun startWelcomeActivity(from: Context) {
-        val i = Intent(from, WelcomeActivity::class.java)
-        from.startActivity(i)
+        if (from is BaseActivity<*, *>) {
+            showEasVerifyWindow<Activity>(
+                from = from,
+                directTo = null,
+                onResponseListener = object : PopUpLoginEAS.OnResponseListener {
+                    override fun onSuccess(window: PopUpLoginEAS) {
+                        window.dismiss()
+                    }
+
+                    override fun onFailed(window: PopUpLoginEAS) {}
+                }
+            )
+        } else {
+            Toast.makeText(from, R.string.eas_login_prompt, Toast.LENGTH_SHORT).show()
+        }
     }
 
     /**
@@ -119,6 +140,64 @@ object ActivityUtils {
         from.startActivity(i)
     }
 
+    fun startCourseResourceSearchActivity(
+        from: Context,
+        query: String? = null,
+        mode: CourseResourceMode = CourseResourceMode.VIEW,
+    ) {
+        val i = Intent(from, CourseResourceSearchActivity::class.java)
+        i.putExtra("query", query)
+        i.putExtra("mode", mode.name)
+        from.startActivity(i)
+    }
+
+    fun startCourseReadmeActivity(
+        from: Context,
+        repoName: String,
+        courseName: String,
+        courseCode: String,
+        repoType: String = "normal",
+    ) {
+        val i = Intent(from, CourseReadmeActivity::class.java)
+        i.putExtra("repoName", repoName)
+        i.putExtra("courseName", courseName)
+        i.putExtra("courseCode", courseCode)
+        i.putExtra("repoType", repoType)
+        from.startActivity(i)
+    }
+
+    fun startCourseContributionActivity(
+        from: Context,
+        repoName: String,
+        courseName: String,
+        courseCode: String,
+        repoType: String = "normal",
+    ) {
+        val i = Intent(from, CourseContributionActivity::class.java)
+        i.putExtra("repoName", repoName)
+        i.putExtra("courseName", courseName)
+        i.putExtra("courseCode", courseCode)
+        i.putExtra("repoType", repoType)
+        from.startActivity(i)
+    }
+
+    fun startInternalWebActivity(from: Context, title: String, url: String) {
+        val i = Intent(from, InternalWebActivity::class.java)
+        i.putExtra("title", title)
+        i.putExtra("url", url)
+        from.startActivity(i)
+    }
+
+    fun startTeacherHomepageSearch(from: Context, teacherName: String) {
+        if (teacherName.isBlank()) return
+        val encodedName = URLEncoder.encode(teacherName, StandardCharsets.UTF_8.toString())
+        startInternalWebActivity(
+            from = from,
+            title = teacherName,
+            url = "https://homepage.hit.edu.cn/search-teacher-by-phoneticize?condition=$encodedName",
+        )
+    }
+
     fun startTimetableDetailActivity(from: Context, id: String) {
         val i = Intent(from, TimetableDetailActivity::class.java)
         i.putExtra("id", id)
@@ -130,7 +209,7 @@ object ActivityUtils {
             val i = Intent(from, ThetaActivity::class.java)
             from.startActivity(i)
         }else{
-            startWelcomeActivity(from)
+            Toast.makeText(from, R.string.eas_login_prompt, Toast.LENGTH_SHORT).show()
         }
 
     }

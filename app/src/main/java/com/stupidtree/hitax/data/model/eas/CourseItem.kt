@@ -6,6 +6,7 @@ import com.google.gson.Gson
  * 导入课表时使用：总课表里的课程条目
  */
 class CourseItem {
+    var code: String? = null
     var name: String? = null
     var weeks: MutableList<Int> = mutableListOf()
     var teacher: String? = null

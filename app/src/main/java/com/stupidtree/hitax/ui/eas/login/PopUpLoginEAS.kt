@@ -6,6 +6,7 @@ import android.text.Editable
 import android.text.TextWatcher
 import android.view.HapticFeedbackConstants
 import android.view.View
+import android.widget.Toast
 import androidx.core.content.ContextCompat
 import com.stupidtree.hitax.R
 import com.stupidtree.hitax.data.repository.EASRepository
@@ -47,6 +48,11 @@ class PopUpLoginEAS :
                 binding?.buttonLogin?.postDelayed({
                     binding?.buttonLogin?.revertAnimation()
                 }, 600)
+                Toast.makeText(
+                    requireContext(),
+                    it.message ?: getString(R.string.hint_eas_login),
+                    Toast.LENGTH_SHORT
+                ).show()
                 onResponseListener?.onFailed(this)
             }
         }

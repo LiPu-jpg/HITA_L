@@ -36,6 +36,9 @@ class ExamListAdapter (
         holder.binding.title.text = data?.courseName
         holder.binding.time.text = data?.examDate
         holder.binding.item.setOnClickListener{view -> mOnItemClickListener?.onItemClick(data, view, position)}
+        holder.binding.item.setOnLongClickListener { view ->
+            mOnItemLongClickListener?.onItemLongClick(data, view, position) ?: false
+        }
     }
 
     override fun createViewHolder(

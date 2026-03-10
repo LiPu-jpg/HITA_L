@@ -40,10 +40,22 @@ class SubjectRepository(application: Application) {
             val result = mutableListOf<TeacherInfo>()
             val map = mutableMapOf<String, TeacherInfo?>()
             for (t in it) {
-                if (map[t.name] == null) {
-                    t.name?.let { it2 -> map[it2] = t }
-                } else {
-                    map[t.name]?.subjectName = map[t.name]?.subjectName + " " + t.subjectName
+                val names = splitTeachers(t.name)
+                if (names.isEmpty()) continue
+                for (name in names) {
+                    if (map[name] == null) {
+                        val info = TeacherInfo().apply {
+                            this.name = name
+                            this.subjectName = t.subjectName
+                        }
+                        map[name] = info
+                    } else {
+                        val existed = map[name]
+                        val merged = listOf(existed?.subjectName, t.subjectName)
+                            .filter { !it.isNullOrBlank() }
+                            .joinToString(" ")
+                        existed?.subjectName = merged
+                    }
                 }
             }
             for (x in map.values) {
@@ -54,7 +66,22 @@ class SubjectRepository(application: Application) {
     }
 
     fun getTeachersOfSubject(timetableId: String, subjectId: String): LiveData<List<String>> {
-        return eventItemDao.getTeachersOfSubject(timetableId, subjectId)
+        return eventItemDao.getTeachersOfSubject(timetableId, subjectId).map { list ->
+            val result = linkedSetOf<String>()
+            for (raw in list) {
+                splitTeachers(raw).forEach { name ->
+                    if (name.isNotBlank()) result.add(name)
+                }
+            }
+            result.toList()
+        }
+    }
+
+    private fun splitTeachers(raw: String?): List<String> {
+        if (raw.isNullOrBlank()) return emptyList()
+        return raw.split(Regex("[,，、]"))
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
     }
 
     /**

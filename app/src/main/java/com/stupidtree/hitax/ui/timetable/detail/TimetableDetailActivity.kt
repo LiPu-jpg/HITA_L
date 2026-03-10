@@ -61,9 +61,21 @@ class TimetableDetailActivity :
         teachersListAdapter?.setOnItemClickListener(object :
             BaseListAdapter.OnItemClickListener<TeacherInfo> {
             override fun onItemClick(data: TeacherInfo?, card: View?, position: Int) {
-                ActivityUtils.searchFor(getThis(), data?.name, ActivityUtils.SearchType.TEACHER)
+                ActivityUtils.startCourseResourceSearchActivity(
+                    getThis(),
+                    data?.name,
+                    ActivityUtils.CourseResourceMode.VIEW,
+                )
             }
 
+        })
+        teachersListAdapter?.setOnItemLongClickListener(object :
+            BaseListAdapter.OnItemLongClickListener<TeacherInfo> {
+            override fun onItemLongClick(data: TeacherInfo?, view: View?, position: Int): Boolean {
+                val teacher = data?.name ?: return false
+                ActivityUtils.startTeacherHomepageSearch(getThis(), teacher)
+                return true
+            }
         })
         subjectsAdapter?.setOnItemClickListener(object :
             BaseListAdapter.OnItemClickListener<TermSubject> {
@@ -240,10 +252,8 @@ class TimetableDetailActivity :
             }
         }
         viewModel.teacherInfoLiveData.observe(this) {
-            val ls = mutableListOf<TeacherInfo>()
-            for(t in ls){
-                if(!t.name.isNullOrEmpty()) ls.add(t)
-            }
+            val teachers = it ?: emptyList()
+            val ls = teachers.filter { !it.name.isNullOrEmpty() }.toMutableList()
             if (teachersListAdapter?.beans?.isNullOrEmpty() == true) {
                 teachersListAdapter?.notifyDataSetChanged(ls)
                 binding.teachersList.scheduleLayoutAnimation()

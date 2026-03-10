@@ -1,9 +1,9 @@
 package com.stupidtree.stupiduser.data.model
 
 class CheckUpdateResult {
-    val shouldUpdate: Boolean = false
-    val latestVersionCode: Long = 0
-    val latestVersionName: String = ""
-    val latestUrl: String = ""
-    val updateLog: String = ""
+    var shouldUpdate: Boolean = false
+    var latestVersionCode: Long = 0
+    var latestVersionName: String = ""
+    var latestUrl: String = ""
+    var updateLog: String = ""
 }

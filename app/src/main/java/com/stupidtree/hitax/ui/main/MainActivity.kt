@@ -1,5 +1,6 @@
 package com.stupidtree.hitax.ui.main
 
+import android.app.Activity
 import android.content.Intent
 import android.graphics.Color
 import android.net.Uri
@@ -20,9 +21,11 @@ import androidx.fragment.app.Fragment
 import androidx.viewpager.widget.ViewPager.OnPageChangeListener
 import com.stupidtree.component.data.DataState
 import com.stupidtree.hitax.R
+import com.stupidtree.hitax.data.repository.EASRepository
 import com.stupidtree.hitax.databinding.ActivityMainBinding
 import com.stupidtree.hitax.ui.about.ActivityAbout
 import com.stupidtree.hitax.ui.about.UserAgreementDialog
+import com.stupidtree.hitax.ui.eas.login.PopUpLoginEAS
 import com.stupidtree.hitax.ui.event.add.PopupAddEvent
 import com.stupidtree.hitax.ui.main.navigation.NavigationFragment
 import com.stupidtree.hitax.ui.main.timeline.FragmentTimeLine
@@ -92,9 +95,6 @@ class MainActivity : BaseActivity<MainViewModel, ActivityMainBinding>(),
         binding.drawerNavigationview.setNavigationItemSelectedListener { item: MenuItem ->
             var jumped = true
             when (item.itemId) {
-                R.id.drawer_nav_search -> {
-                    ActivityUtils.startSearchActivity(getThis())
-                }
                 R.id.drawer_nav_ua -> {
                     UserAgreementDialog().show(supportFragmentManager, "ua")
                 }
@@ -260,10 +260,29 @@ class MainActivity : BaseActivity<MainViewModel, ActivityMainBinding>(),
                 }
             } else {
                 //未登录的信息显示
-                drawerUsername?.setText(R.string.not_log_in)
-                drawerNickname?.setText(R.string.log_in_first)
+                val easToken = EASRepository.getInstance(application).getEasToken()
+                if (easToken.isLogin()) {
+                    drawerUsername?.text = easToken.name?.ifBlank { easToken.username }
+                        ?: easToken.username
+                    drawerNickname?.text = easToken.stuId?.ifBlank { easToken.username } ?: ""
+                } else {
+                    drawerUsername?.setText(R.string.eas_account_not_logged_in_title)
+                    drawerNickname?.setText(R.string.eas_account_not_logged_in_subtitle)
+                }
                 drawerAvatar?.setImageResource(R.drawable.place_holder_avatar)
-                drawerHeader?.setOnClickListener { ActivityUtils.startWelcomeActivity(getThis()) }
+                drawerHeader?.setOnClickListener {
+                    ActivityUtils.showEasVerifyWindow<Activity>(
+                        getThis(),
+                        directTo = null,
+                        onResponseListener = object : PopUpLoginEAS.OnResponseListener {
+                            override fun onSuccess(window: PopUpLoginEAS) {
+                                window.dismiss()
+                            }
+
+                            override fun onFailed(window: PopUpLoginEAS) {}
+                        }
+                    )
+                }
             }
         }
     }

@@ -2,6 +2,9 @@ package com.stupidtree.hitax.ui.event
 
 import android.os.Bundle
 import android.view.View
+import android.view.ViewGroup
+import android.widget.ImageView
+import android.widget.TextView
 import com.stupidtree.hitax.R
 import com.stupidtree.hitax.data.model.timetable.EventItem
 import com.stupidtree.hitax.data.model.timetable.TimeInDay
@@ -9,6 +12,7 @@ import com.stupidtree.hitax.databinding.DialogBottomTimetableClassBinding
 import com.stupidtree.hitax.ui.subject.SubjectActivity
 import com.stupidtree.hitax.utils.ActivityUtils
 import com.stupidtree.hitax.utils.TimeTools
+import com.stupidtree.hitax.utils.CourseCodeUtils
 import com.stupidtree.style.base.BaseFragment
 import com.stupidtree.style.widgets.PopUpText
 import java.util.*
@@ -44,7 +48,16 @@ class EventItemFragment : BaseFragment<EventItemViewModel, DialogBottomTimetable
 //    }
 
     private fun setInfo(eventItem: EventItem) {
-        binding?.teacher?.text = getString(eventItem.teacher)
+        val teachers = splitTeachers(eventItem.teacher)
+        val container = binding?.teacherList
+        container?.removeAllViews()
+        if (teachers.isEmpty()) {
+            addTeacherRow(container, getString(R.string.none), clickable = false)
+        } else {
+            teachers.forEach { name ->
+                addTeacherRow(container, name, clickable = true)
+            }
+        }
         binding?.place?.text = getString(eventItem.place)
         binding?.time?.text = getString(
             R.string.event_duration_text,
@@ -62,16 +75,8 @@ class EventItemFragment : BaseFragment<EventItemViewModel, DialogBottomTimetable
             binding?.numberLayout?.visibility = View.VISIBLE
         }
 
-        binding?.ttDlgValue3Detail?.setOnClickListener {
-            viewModel.eventItemLiveData.value?.let {
-                ActivityUtils.searchFor(
-                    requireContext(),
-                    it.teacher,
-                    ActivityUtils.SearchType.TEACHER
-                )
-            }
-
-        }
+        binding?.ttDlgValue3Detail?.setOnClickListener(null)
+        binding?.ttDlgValue3Detail?.setOnLongClickListener(null)
 //        if (TextUtils.isEmpty(eventItem.tag2)) {
 //            classroom_detail_icon!!.visibility = View.GONE
 //        } else {
@@ -116,6 +121,39 @@ class EventItemFragment : BaseFragment<EventItemViewModel, DialogBottomTimetable
     fun getString(str: String?): String {
         if (str.isNullOrEmpty()) return getString(R.string.none)
         return str
+    }
+
+    private fun splitTeachers(raw: String?): List<String> {
+        if (raw.isNullOrBlank()) return emptyList()
+        return raw.split(Regex("[,，、]"))
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+    }
+
+    private fun addTeacherRow(container: ViewGroup?, name: String, clickable: Boolean) {
+        if (container == null) return
+        val row = layoutInflater.inflate(R.layout.dynamic_teacher_row, container, false)
+        val nameView = row.findViewById<TextView>(R.id.teacher_name)
+        val actionView = row.findViewById<ImageView>(R.id.teacher_action)
+        nameView.text = name
+        if (!clickable || name == getString(R.string.none)) {
+            actionView.visibility = View.GONE
+            row.setOnClickListener(null)
+            row.setOnLongClickListener(null)
+        } else {
+            row.setOnClickListener {
+                ActivityUtils.startCourseResourceSearchActivity(
+                    requireContext(),
+                    query = name,
+                    mode = ActivityUtils.CourseResourceMode.VIEW,
+                )
+            }
+            row.setOnLongClickListener {
+                ActivityUtils.startTeacherHomepageSearch(requireContext(), name)
+                true
+            }
+        }
+        container.addView(row)
     }
 
 //
@@ -214,11 +252,30 @@ class EventItemFragment : BaseFragment<EventItemViewModel, DialogBottomTimetable
 
         binding?.subject?.setOnClickListener(View.OnClickListener {
             if (requireContext() !is SubjectActivity) {
-                viewModel.eventItemLiveData.value?.let {
-                    ActivityUtils.startSubjectActivity(requireContext(), it.subjectId)
+                viewModel.eventItemLiveData.value?.let { event ->
+                    ActivityUtils.startSubjectActivity(requireContext(), event.subjectId)
                 }
             }
         })
+        binding?.subject?.setOnLongClickListener {
+            val subject = viewModel.subjectLiveData.value
+            if (subject != null) {
+                val normalizedCode = CourseCodeUtils.normalize(subject.code)
+                val repoName = normalizedCode?.takeIf { it.isNotBlank() }
+                    ?: subject.code?.takeIf { it.isNotBlank() }
+                    ?: subject.name
+                ActivityUtils.startCourseReadmeActivity(
+                    requireContext(),
+                    repoName = repoName,
+                    courseName = subject.name,
+                    courseCode = normalizedCode?.takeIf { it.isNotBlank() }
+                        ?: subject.code?.takeIf { it.isNotBlank() }
+                        ?: repoName,
+                    repoType = "normal",
+                )
+            }
+            true
+        }
         binding?.nameLayout?.setOnClickListener { binding?.subject?.callOnClick() }
         binding?.delete?.setOnClickListener {
             PopUpText().setTitle(R.string.dialog_title_sure_delete)

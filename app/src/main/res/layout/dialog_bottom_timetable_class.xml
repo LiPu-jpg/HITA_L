@@ -33,11 +33,11 @@
             android:focusable="true"
             android:gravity="center|start"
             android:paddingEnd="16dp"
-            android:text="名字非常长"
             android:textColor="?attr/textColorPrimary"
             android:textSize="20sp"
             android:textStyle="bold"
             android:transitionName="course_name"
+            tools:text="名字非常长"
             tools:ignore="HardcodedText" />
 
         <TextView
@@ -50,7 +50,7 @@
             android:paddingTop="4dp"
             android:paddingEnd="12dp"
             android:paddingBottom="4dp"
-            android:text="课程"
+            android:text="@string/dialog_view_course_detail"
             android:textColor="?attr/colorAccent"
             android:textSize="14sp"
             android:textStyle="bold" />
@@ -102,33 +102,11 @@
                 tools:ignore="NestedWeights,RtlHardcoded" />
 
             <LinearLayout
+                android:id="@+id/teacher_list"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:clickable="false"
-
-                android:orientation="horizontal">
-
-                <TextView
-                    android:id="@+id/teacher"
-                    android:layout_width="wrap_content"
-
-                    android:layout_height="wrap_content"
-                    android:gravity="center"
-                    android:singleLine="true"
-                    android:text="张彪"
-                    android:textColor="?attr/textColorPrimary"
-                    android:textSize="19sp"
-                    tools:ignore="HardcodedText" />
-
-                <ImageView
-                    android:layout_width="20dp"
-                    android:layout_height="20dp"
-                    android:layout_gravity="center"
-                    android:layout_marginStart="4dp"
-                    android:clickable="false"
-                    app:srcCompat="@drawable/ic_baseline_search_24"
-                    app:tint="?attr/colorAccent" />
-            </LinearLayout>
+                android:orientation="vertical" />
 
         </LinearLayout>
     </LinearLayout>
@@ -430,20 +408,17 @@
         android:paddingEnd="24dp"
         android:paddingBottom="16dp">
 
-        <ImageView
+        <com.google.android.material.button.MaterialButton
             android:id="@+id/subject"
-            android:layout_width="36dp"
+            android:layout_width="wrap_content"
             android:layout_height="36dp"
             android:layout_gravity="end"
             android:layout_marginEnd="16dp"
-            android:background="@drawable/element_rounded_button_bg_primary_light"
-            android:clickable="true"
-            android:foreground="?attr/selectableItemBackground"
-            android:padding="10dp"
-            android:theme="@style/button_ripple_accent_little"
-            app:srcCompat="@drawable/ic_baseline_menu_24"
-            app:tint="?attr/colorAccent"
-            app:tintMode="src_in"
+            android:text="@string/course_detail_open"
+            android:textColor="@color/white"
+            app:backgroundTint="?attr/colorPrimary"
+            app:cornerRadius="18dp"
+            style="@style/Widget.MaterialComponents.Button"
             android:focusable="true" />
 
         <ImageView
@@ -464,5 +439,3 @@
 
 
 </LinearLayout>
-
-
