@@ -391,6 +391,7 @@
     <string name="exam_memo_add_title">新增考试备忘</string>
     <string name="exam_memo_add_confirm">保存</string>
     <string name="exam_memo_add_cancel">取消</string>
+    <string name="exam_memo_add_hint">这是备忘录，提交后保存在本机。长按条目可删除。</string>
     <string name="exam_memo_title_hint">考试/课程名称（必填）</string>
     <string name="exam_memo_date_hint">日期（如 2026-03-10）</string>
     <string name="exam_memo_time_hint">时间（如 09:00-11:00）</string>

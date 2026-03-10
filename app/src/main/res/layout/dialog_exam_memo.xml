@@ -8,6 +8,14 @@
     android:paddingEnd="20dp"
     android:paddingBottom="4dp">
 
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/exam_memo_add_hint"
+        android:textColor="?attr/textColorSecondary"
+        android:textSize="13sp"
+        android:paddingBottom="8dp" />
+
     <androidx.appcompat.widget.AppCompatEditText
         android:id="@+id/memo_title"
         android:layout_width="match_parent"
