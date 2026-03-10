@@ -33,6 +33,7 @@ android {
     buildFeatures {
         //dataBinding = true
         // for view binding :
+        buildConfig = true
         viewBinding = true
     }
     namespace 'com.stupidtree.component'
