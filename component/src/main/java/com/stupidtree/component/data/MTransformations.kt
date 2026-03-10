@@ -23,8 +23,8 @@ object MTransformations {
         val result = MediatorLiveData<Y>()
         result.addSource(source, object : Observer<X?> {
             var mSource: LiveData<Y>? = null
-            override fun onChanged(x: X?) {
-                val newLiveData = switchMapFunction.apply(x)
+            override fun onChanged(value: X?) {
+                val newLiveData = switchMapFunction.apply(value)
                 if (mSource === newLiveData) {
                     return
                 }
