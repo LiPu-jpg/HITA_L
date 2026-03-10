@@ -5,6 +5,9 @@ buildscript {
         kotlin_version = '1.9.20'
     }
     repositories {
+        maven { url = uri("https://maven.aliyun.com/repository/google") }
+        maven { url = uri("https://maven.aliyun.com/repository/central") }
+        maven { url = uri("https://maven.aliyun.com/repository/public") }
         google()
         maven { url = uri("https://www.jitpack.io") }
         mavenCentral()
@@ -20,6 +23,9 @@ buildscript {
 
 allprojects {
     repositories {
+        maven { url = uri("https://maven.aliyun.com/repository/google") }
+        maven { url = uri("https://maven.aliyun.com/repository/central") }
+        maven { url = uri("https://maven.aliyun.com/repository/public") }
         google()
         maven { url = uri("https://www.jitpack.io") }
         mavenCentral()
