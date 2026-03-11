@@ -433,30 +433,8 @@ class EASource internal constructor() : EASService {
             .mapNotNull { it.groupValues.getOrNull(1)?.trim() }
             .filter { it.isNotBlank() }
             .toList()
-        val preferred = tokens.firstOrNull { looksLikeClassroom(it) }
-        if (!preferred.isNullOrBlank()) return preferred
-        val lineFallback = kbxx.split("\n")
-            .map { it.trim() }
-            .firstOrNull { looksLikeClassroom(it) }
-        return lineFallback ?: tokens.firstOrNull()
-    }
-
-    private fun looksLikeClassroom(text: String): Boolean {
-        if (text.isBlank()) return false
-        val trimmed = text.trim()
-        if (trimmed.contains("周") || trimmed.contains("节") || trimmed.contains("星期") || trimmed.contains("第")) {
-            return false
-        }
-        // Exclude strings with Chinese chars or dots (e.g. "软件设计1.")
-        if (trimmed.any { it in '\u4e00'..'\u9fa5' } || trimmed.contains('.')) {
-            return false
-        }
-        if (!trimmed.any { it.isDigit() }) return false
-        // Allow only simple room-like tokens: letters/digits/-/_
-        if (trimmed.any { !(it.isLetterOrDigit() || it == '-' || it == '_') }) {
-            return false
-        }
-        return true
+        // 教务返回通常把地点放在最后一个方括号里
+        return tokens.lastOrNull()
     }
 
     private fun extractTeacher(kc: org.json.JSONObject, courseName: String?, kbxx: String): String? {
