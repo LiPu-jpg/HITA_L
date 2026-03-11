@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">HITA课表</string>
+    <string name="app_name">HITA</string>
 
     <string name="confirm">确定</string>
     <string name="cancel">取消</string>
@@ -113,24 +113,6 @@
     <string name="navi_course_lookup_sub">在应用内搜索课程资料与 README</string>
     <string name="navi_course_submit_pr">提交课程资料 PR</string>
     <string name="navi_course_submit_pr_sub">只追加新的课程内容，不直接改动原文</string>
-    <string name="navi_course_snatch_title">抢课助手</string>
-    <string name="navi_course_snatch">定时抢课</string>
-    <string name="navi_course_snatch_sub">设置定时任务，自动发包抢课</string>
-    <string name="snatch_status_label">当前状态</string>
-    <string name="snatch_status_idle">未运行</string>
-    <string name="snatch_status_running">运行中…</string>
-    <string name="snatch_course_id_label">课程代码</string>
-    <string name="snatch_course_id_hint">输入课程代码（如 COMP1011）</string>
-    <string name="snatch_course_id_required">请填写课程代码</string>
-    <string name="snatch_course_list_loading">正在加载可选课程列表，请稍后</string>
-    <string name="snatch_course_code_not_found">未找到该课程代码，请检查或刷新</string>
-    <string name="snatch_schedule_label">发包时间</string>
-    <string name="snatch_schedule_sub">到点后自动发包 5 次，每次间隔 10 秒</string>
-    <string name="snatch_schedule_invalid">请选择未来的发包时间</string>
-    <string name="snatch_no_term">未获取到学期信息，请稍后重试</string>
-    <string name="snatch_start">开始抢课</string>
-    <string name="snatch_stop">停止</string>
-    <string name="snatch_log_label">操作日志</string>
     <string name="course_resource_open">查看课程资源</string>
     <string name="course_detail_open">查看课程详情内容</string>
     <string name="course_resource_contribute">追加课程补充</string>

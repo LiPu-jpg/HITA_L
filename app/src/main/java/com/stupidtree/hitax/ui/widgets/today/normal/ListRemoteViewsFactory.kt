@@ -35,8 +35,9 @@ internal class ListRemoteViewsFactory(val mContext: Context, intent: Intent) :
                 event.to.time
             )
         )
+        val place = event.place?.trim().orEmpty()
         val result =
-            if (TextUtils.isEmpty(event.place)) mContext.getString(R.string.unknown_location_widget) else event.place
+            if (TextUtils.isEmpty(place)) mContext.getString(R.string.unknown_location_widget) else place
         rv.setTextViewText(R.id.location, result)
 
         val lockIntent = Intent()

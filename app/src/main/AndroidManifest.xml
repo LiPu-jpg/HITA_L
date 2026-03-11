@@ -99,7 +99,6 @@
         <activity android:name=".ui.resource.CourseResourceSearchActivity" />
         <activity android:name=".ui.resource.CourseReadmeActivity" />
         <activity android:name=".ui.resource.CourseContributionActivity" />
-        <activity android:name=".ui.snatch.CourseSnatchActivity" />
     </application>
 
 </manifest>

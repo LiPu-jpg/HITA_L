@@ -15,7 +15,6 @@ import com.stupidtree.hitax.ui.eas.imp.ImportTimetableActivity
 import com.stupidtree.hitax.ui.eas.login.PopUpLoginEAS
 import com.stupidtree.hitax.ui.eas.score.ScoreInquiryActivity
 import com.stupidtree.hitax.utils.ActivityUtils.CourseResourceMode
-import com.stupidtree.hitax.ui.snatch.CourseSnatchActivity
 import com.stupidtree.hitax.utils.ActivityUtils
 import com.stupidtree.hitax.utils.ImageUtils
 import com.stupidtree.stupiduser.data.repository.LocalUserRepository
@@ -131,9 +130,6 @@ class NavigationFragment : BaseFragment<NavigationViewModel, FragmentNavigationB
         }
         binding?.cardCourseSubmitPr?.setOnClickListener {
             ActivityUtils.startCourseResourceSearchActivity(requireContext(), mode = CourseResourceMode.SUBMIT)
-        }
-        binding?.cardCourseSnatch?.setOnClickListener {
-            ActivityUtils.startActivity(requireContext(), CourseSnatchActivity::class.java)
         }
     }
 

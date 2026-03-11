@@ -91,7 +91,7 @@ object TimeTools {
         if (date != null) {
             c.timeInMillis = date
         }
-        return SimpleDateFormat("hh:mm", Locale.getDefault()).format(c.time)
+        return SimpleDateFormat("HH:mm", Locale.getDefault()).format(c.time)
     }
 
     fun getDateAtWOT(startDate: Calendar, WeekOfTerm: Int, DOW: Int): Calendar {
