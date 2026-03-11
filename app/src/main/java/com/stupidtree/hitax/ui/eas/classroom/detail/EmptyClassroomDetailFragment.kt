@@ -72,7 +72,9 @@ class EmptyClassroomDetailFragment(
 
     @SuppressLint("SetTextI18n")
     override fun initViews(v: View) {
-        binding.subtitle.text = "${term.name}${getString(R.string.week_title, week)}"
+        val termName = term.termName.trim()
+        val display = if (termName.isNotBlank()) termName else term.name
+        binding.subtitle.text = "${display}${getString(R.string.week_title, week)}"
         binding.title.text = getString(R.string.empty_classroom_format, classroom.name)
         listAdapter = EmptyClassroomDetailAdapter(requireContext(), mutableListOf())
         binding.list.adapter = listAdapter

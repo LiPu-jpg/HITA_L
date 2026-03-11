@@ -44,9 +44,9 @@ class ScoreInquiryActivity :
             }
         }
         viewModel.selectedTermLiveData.observe(this) {
-            it?.let {
+            it?.let { term ->
                 binding.refresh.isRefreshing = true
-                binding.schoolSemesterText.text = it.name
+                binding.schoolSemesterText.text = getDisplayTermName(term, viewModel.termsLiveData.value?.data)
             }
         }
         viewModel.scoresLiveData.observe(this) {
@@ -94,16 +94,11 @@ class ScoreInquiryActivity :
         binding.scoreStructure.adapter = listAdapter
         binding.scoreStructure.layoutManager = LinearLayoutManager(getThis())
         binding.schoolSemesterLayout.setOnClickListener {
-            val names = mutableListOf<String>()
-            viewModel.termsLiveData.value?.data?.let {
-                for (i in it) {
-                    names.add(i.name)
-                }
-                if (names.isEmpty()) {
-                    return@setOnClickListener
-                }
+            viewModel.termsLiveData.value?.data?.let { terms ->
+                val names = terms.map { getDisplayTermName(it, terms) }
+                if (names.isEmpty()) return@setOnClickListener
                 PopUpCheckableList<TermItem>()
-                    .setListData(names, it)
+                    .setListData(names, terms)
                     .setTitle(getString(R.string.pick_quety_term))
                     .setOnConfirmListener(object :
                         PopUpCheckableList.OnConfirmListener<TermItem> {
@@ -145,6 +140,19 @@ class ScoreInquiryActivity :
             }
         })
         viewModel.selectedTestTypeLiveData.value = EASService.TestType.ALL
+    }
+
+    private fun getDisplayTermName(term: TermItem, allTerms: List<TermItem>?): String {
+        val termName = term.termName.trim()
+        if (termName.isNotBlank() && allTerms != null) {
+            val duplicates = allTerms.count { it.termName.trim() == termName }
+            if (duplicates <= 1) {
+                return termName
+            }
+        } else if (termName.isNotBlank()) {
+            return termName
+        }
+        return term.name
     }
 
     override fun getViewModelClass(): Class<ScoreInquiryViewModel> {
