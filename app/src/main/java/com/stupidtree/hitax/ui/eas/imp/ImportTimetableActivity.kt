@@ -64,15 +64,13 @@ class ImportTimetableActivity :
         })
         binding.cardName.isEnabled = false
         binding.termPick.setOnClickListener {
-            val names = mutableListOf<String>()
-            for (i in viewModel.startGetAllTerms()) {
-                names.add(i.name)
-            }
+            val terms = viewModel.startGetAllTerms()
+            val names = terms.map { getDisplayTermName(it, terms) }
             if (names.isEmpty()) {
                 return@setOnClickListener
             }
             PopUpCheckableList<TermItem>()
-                .setListData(names, viewModel.startGetAllTerms())
+                .setListData(names, terms)
                 .setTitle(getString(R.string.pick_import_term))
                 .setOnConfirmListener(object :
                     PopUpCheckableList.OnConfirmListener<TermItem> {
@@ -110,8 +108,9 @@ class ImportTimetableActivity :
     private fun bindLiveData() {
         viewModel.selectedTermLiveData.observe(this) {
             it?.let {
-                binding.termText.text = it.name
-                binding.cardName.setTitle(it.name)
+                val label = getDisplayTermName(it, viewModel.startGetAllTerms())
+                binding.termText.text = label
+                binding.cardName.setTitle(label)
             }
         }
         viewModel.termsLiveData.observe(this) { data ->
@@ -219,6 +218,17 @@ class ImportTimetableActivity :
             }
 
         })
+    }
+
+    private fun getDisplayTermName(term: TermItem, allTerms: List<TermItem>): String {
+        val termName = term.termName.trim()
+        if (termName.isNotBlank()) {
+            val duplicates = allTerms.count { it.termName.trim() == termName }
+            if (duplicates <= 1) {
+                return termName
+            }
+        }
+        return term.name
     }
 
 

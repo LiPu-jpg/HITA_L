@@ -59,6 +59,7 @@
                         android:layout_gravity="center"
                         android:gravity="center"
                         android:maxEms="6"
+                        android:ellipsize="end"
                         android:singleLine="true"
                         android:text="1970"
                         android:textColor="?attr/textColorPrimary"
