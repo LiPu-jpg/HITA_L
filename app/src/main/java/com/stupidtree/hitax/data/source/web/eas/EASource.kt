@@ -318,6 +318,12 @@ class EASource internal constructor() : EASService {
                         s.credit = subject.optString("xf").toFloatOrNull() ?: 0f
                         s.key = subject.optString("id")
                         s.field = subject.optString("kclbmc")
+                        s.selectCategory = subject.optString("xklbmc").ifBlank {
+                            subject.optString("xkfsmc").ifBlank {
+                                subject.optString("rwlxmc")
+                            }
+                        }
+                        s.nature = subject.optString("kcxzmc")
                         when (subject.optString("kcxzmc")) {
                             "必修" -> s.type = TermSubject.TYPE.COM_A
                             "限选" -> s.type = TermSubject.TYPE.OPT_A

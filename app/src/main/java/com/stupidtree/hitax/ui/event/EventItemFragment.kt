@@ -12,7 +12,7 @@ import com.stupidtree.hitax.databinding.DialogBottomTimetableClassBinding
 import com.stupidtree.hitax.ui.subject.SubjectActivity
 import com.stupidtree.hitax.utils.ActivityUtils
 import com.stupidtree.hitax.utils.TimeTools
-import com.stupidtree.hitax.utils.CourseCodeUtils
+import com.stupidtree.hitax.utils.CourseResourceLinker
 import com.stupidtree.style.base.BaseFragment
 import com.stupidtree.style.widgets.PopUpText
 import java.util.*
@@ -260,18 +260,11 @@ class EventItemFragment : BaseFragment<EventItemViewModel, DialogBottomTimetable
         binding?.subject?.setOnLongClickListener {
             val subject = viewModel.subjectLiveData.value
             if (subject != null) {
-                val normalizedCode = CourseCodeUtils.normalize(subject.code)
-                val repoName = normalizedCode?.takeIf { it.isNotBlank() }
-                    ?: subject.code?.takeIf { it.isNotBlank() }
-                    ?: subject.name
-                ActivityUtils.startCourseReadmeActivity(
-                    requireContext(),
-                    repoName = repoName,
-                    courseName = subject.name,
-                    courseCode = normalizedCode?.takeIf { it.isNotBlank() }
-                        ?: subject.code?.takeIf { it.isNotBlank() }
-                        ?: repoName,
-                    repoType = "normal",
+                CourseResourceLinker.openReadme(
+                    context = requireContext(),
+                    owner = viewLifecycleOwner,
+                    courseCodeRaw = subject.code,
+                    courseNameRaw = subject.name,
                 )
             }
             true

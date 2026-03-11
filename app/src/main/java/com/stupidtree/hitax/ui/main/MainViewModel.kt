@@ -9,6 +9,7 @@ import com.stupidtree.component.data.DataState
 import com.stupidtree.component.data.Trigger
 import com.stupidtree.hitax.BuildConfig
 import com.stupidtree.hitax.data.repository.EASRepository
+import com.stupidtree.hitax.data.repository.UpdateRepository
 import com.stupidtree.hitax.utils.LiveDataUtils
 import com.stupidtree.stupiduser.data.model.CheckUpdateResult
 import com.stupidtree.stupiduser.data.model.UserLocal
@@ -21,6 +22,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
      */
     private val localUserRepository = LocalUserRepository.getInstance(application)
     private val managerRepository = ManagerRepository.getInstance(application)
+    private val updateRepository = UpdateRepository.getInstance(application)
 
     /**
      * LiveData
@@ -34,6 +36,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val checkUpdateTrigger = MutableLiveData<Long>()
     val checkUpdateResult = checkUpdateTrigger.switchMap{
+        updateRepository.checkUpdateFromGitHub(
+            currentVersionName = BuildConfig.VERSION_NAME,
+            updateUrl = BuildConfig.UPDATE_URL,
+            allowPrerelease = BuildConfig.UPDATE_ALLOW_PRERELEASE
+        )?.let { github ->
+            return@switchMap github
+        }
         buildLocalUpdateResult(it)?.let { local ->
             return@switchMap LiveDataUtils.getMutableLiveData(local)
         }

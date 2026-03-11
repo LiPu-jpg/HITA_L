@@ -23,6 +23,8 @@ class TermSubject{
     var type //课程类型
             : TYPE = TYPE.COM_A
     var field: String? = null//课程领域（人文艺术、科学技术）
+    var selectCategory: String? = null//选课类别
+    var nature: String? = null//课程性质
     var credit //学分
             = 0f
     var school //开课院系

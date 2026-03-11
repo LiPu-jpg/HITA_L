@@ -348,6 +348,7 @@
     <string name="subject_code">课程代码</string>
     <string name="subject_xnxq">学年学期</string>
     <string name="subject_type">课程类别</string>
+    <string name="subject_type_detail">选课类别 / 课程类别 / 课程性质</string>
     <string name="subject_school">开设部门</string>
     <string name="subject_title_all_courses">所有课时</string>
     <string name="subject_progress_text">进度</string>

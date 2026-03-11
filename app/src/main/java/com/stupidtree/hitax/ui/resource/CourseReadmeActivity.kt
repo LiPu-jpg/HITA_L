@@ -9,7 +9,14 @@ import com.stupidtree.hitax.databinding.ActivityCourseReadmeBinding
 import com.stupidtree.hitax.utils.ActivityUtils
 import com.stupidtree.style.base.BaseActivity
 import io.noties.markwon.Markwon
+import io.noties.markwon.ext.latex.JLatexMathPlugin
+import io.noties.markwon.ext.strikethrough.StrikethroughPlugin
+import io.noties.markwon.ext.tables.TablePlugin
+import io.noties.markwon.ext.tasklist.TaskListPlugin
+import io.noties.markwon.html.HtmlPlugin
+import io.noties.markwon.image.glide.GlideImagesPlugin
 import io.noties.markwon.linkify.LinkifyPlugin
+// syntax highlight removed (prism4j artifacts not available in current mirrors)
 
 class CourseReadmeActivity : BaseActivity<CourseReadmeViewModel, ActivityCourseReadmeBinding>() {
     private lateinit var repoName: String
@@ -47,6 +54,12 @@ class CourseReadmeActivity : BaseActivity<CourseReadmeViewModel, ActivityCourseR
                 binding.sourceText.text = getString(R.string.course_readme_source, data.source)
                 Markwon.builder(this)
                     .usePlugin(LinkifyPlugin.create())
+                    .usePlugin(HtmlPlugin.create())
+                    .usePlugin(TablePlugin.create(this))
+                    .usePlugin(TaskListPlugin.create(this))
+                    .usePlugin(StrikethroughPlugin.create())
+                    .usePlugin(JLatexMathPlugin.create(binding.readmeText.textSize))
+                    .usePlugin(GlideImagesPlugin.create(this))
                     .build()
                     .setMarkdown(binding.readmeText, data.markdown)
             } else {

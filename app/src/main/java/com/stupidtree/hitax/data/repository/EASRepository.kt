@@ -255,18 +255,39 @@ class EASRepository internal constructor(application: Application) {
                                     subject.timetableId = timetable.id
                                     subject.id = UUID.randomUUID().toString()
                                 }
-                                val code = CourseCodeUtils.normalize(item.code) ?: item.code?.trim().orEmpty()
-                                if (code.isNotBlank() && subject.code.isNullOrBlank()) {
-                                    subject.code = code
+                            val code = CourseCodeUtils.normalize(item.code) ?: item.code?.trim().orEmpty()
+                            if (code.isNotBlank() && subject.code.isNullOrBlank()) {
+                                subject.code = code
+                            }
+                            if (subject.credit <= 0f) {
+                                val mappedCredit = creditMap[code]
+                                    ?: item.name?.let { name -> creditMap[name] }
+                                if (mappedCredit != null && mappedCredit > 0f) {
+                                    subject.credit = mappedCredit
                                 }
-                                if (subject.credit <= 0f) {
-                                    val mappedCredit = creditMap[code]
-                                        ?: item.name?.let { name -> creditMap[name] }
-                                    if (mappedCredit != null && mappedCredit > 0f) {
-                                        subject.credit = mappedCredit
-                                    }
+                            }
+                            if (subject.field.isNullOrBlank()) {
+                                val mappedField = meta.fieldMap[code]
+                                    ?: item.name?.let { name -> meta.fieldMap[name] }
+                                if (!mappedField.isNullOrBlank()) {
+                                    subject.field = mappedField
                                 }
-                                subjectDao.saveSubjectSync(subject)
+                            }
+                            if (subject.selectCategory.isNullOrBlank()) {
+                                val mappedSelect = meta.selectCategoryMap[code]
+                                    ?: item.name?.let { name -> meta.selectCategoryMap[name] }
+                                if (!mappedSelect.isNullOrBlank()) {
+                                    subject.selectCategory = mappedSelect
+                                }
+                            }
+                            if (subject.nature.isNullOrBlank()) {
+                                val mappedNature = meta.natureMap[code]
+                                    ?: item.name?.let { name -> meta.natureMap[name] }
+                                if (!mappedNature.isNullOrBlank()) {
+                                    subject.nature = mappedNature
+                                }
+                            }
+                            subjectDao.saveSubjectSync(subject)
                                 if (requireSubjects[subject.id] == null) {
                                     requireSubjects[subject.id] = subject.id
                                     StupidSync.putHistorySync(
@@ -357,12 +378,18 @@ class EASRepository internal constructor(application: Application) {
 
     private data class SelectedSubjectMeta(
         val teacherMap: Map<String, String>,
-        val creditMap: Map<String, Float>
+        val creditMap: Map<String, Float>,
+        val fieldMap: Map<String, String>,
+        val selectCategoryMap: Map<String, String>,
+        val natureMap: Map<String, String>
     )
 
     private fun fetchSelectedSubjectMeta(term: TermItem, token: EASToken): SelectedSubjectMeta {
         val teacherMap = mutableMapOf<String, String>()
         val creditMap = mutableMapOf<String, Float>()
+        val fieldMap = mutableMapOf<String, String>()
+        val selectCategoryMap = mutableMapOf<String, String>()
+        val natureMap = mutableMapOf<String, String>()
         val latch = CountDownLatch(1)
         val live = easService.getSubjectsOfTerm(token, term)
         val observer = Observer<DataState<MutableList<TermSubject>>> { state ->
@@ -378,6 +405,18 @@ class EASRepository internal constructor(application: Application) {
                         subject.code?.let { code -> creditMap[code] = credit }
                         if (subject.name.isNotBlank()) creditMap[subject.name] = credit
                     }
+                    subject.field?.trim()?.takeIf { it.isNotEmpty() }?.let { value ->
+                        subject.code?.let { code -> fieldMap[code] = value }
+                        if (subject.name.isNotBlank()) fieldMap[subject.name] = value
+                    }
+                    subject.selectCategory?.trim()?.takeIf { it.isNotEmpty() }?.let { value ->
+                        subject.code?.let { code -> selectCategoryMap[code] = value }
+                        if (subject.name.isNotBlank()) selectCategoryMap[subject.name] = value
+                    }
+                    subject.nature?.trim()?.takeIf { it.isNotEmpty() }?.let { value ->
+                        subject.code?.let { code -> natureMap[code] = value }
+                        if (subject.name.isNotBlank()) natureMap[subject.name] = value
+                    }
                 }
                 latch.countDown()
             }
@@ -386,7 +425,7 @@ class EASRepository internal constructor(application: Application) {
         mainHandler.post { live.observeForever(observer) }
         latch.await(4, TimeUnit.SECONDS)
         mainHandler.post { live.removeObserver(observer) }
-        return SelectedSubjectMeta(teacherMap, creditMap)
+        return SelectedSubjectMeta(teacherMap, creditMap, fieldMap, selectCategoryMap, natureMap)
     }
 
     fun getEasToken(): EASToken {

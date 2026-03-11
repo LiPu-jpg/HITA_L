@@ -3,6 +3,7 @@ package com.stupidtree.hitax.ui.subject
 import android.animation.ValueAnimator
 import android.os.Bundle
 import android.text.TextUtils
+import android.util.TypedValue
 import android.view.View
 import android.view.animation.DecelerateInterpolator
 import androidx.core.content.ContextCompat
@@ -18,6 +19,7 @@ import com.stupidtree.hitax.utils.EditModeHelper
 import com.stupidtree.hitax.utils.EventsUtils
 import com.stupidtree.hitax.utils.TimeTools
 import com.stupidtree.hitax.utils.CourseCodeUtils
+import com.stupidtree.hitax.utils.CourseResourceLinker
 import com.stupidtree.style.base.BaseActivity
 import com.stupidtree.style.base.BaseListAdapter
 import com.stupidtree.style.widgets.PopUpSelectableList
@@ -43,9 +45,14 @@ class SubjectActivity : BaseActivity<SubjectViewModel, ActivitySubjectBinding>()
     override fun initViews() {
         initCourseList()
         initInfoList()
+        binding.cardType.title?.isSingleLine = false
+        binding.cardType.title?.maxLines = 3
+        binding.cardType.title?.ellipsize = TextUtils.TruncateAt.END
+        binding.cardType.title?.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
+        binding.cardType.setSubtitle("")
         viewModel.subjectLiveData.observe(this) {
             binding.collapse.title = it.name
-            binding.cardType.setTitle(getSubjectTypeName(it.type))
+            binding.cardType.setTitle(getSubjectCategoryDisplay(it))
             binding.cardCredit.setTitle(getSubjectCreditKey(it))
         }
         viewModel.classesLiveData.observe(this) {
@@ -163,34 +170,7 @@ class SubjectActivity : BaseActivity<SubjectViewModel, ActivitySubjectBinding>()
     }
 
     private fun initInfoList() {
-        binding.cardType.onCardClickListener = View.OnClickListener {
-            viewModel.subjectLiveData.value?.let { subject ->
-                PopUpSelectableList<TermSubject.TYPE>()
-                    .setListData(
-                        listOf(
-                            getString(R.string.subject_exam),
-                            getString(R.string.not_counted_in_GPA),
-                            getString(R.string.subject_mooc)
-                        ),
-                        listOf(
-                            TermSubject.TYPE.COM_A,
-                            TermSubject.TYPE.COM_B,
-                            TermSubject.TYPE.MOOC
-                        )
-                    )
-                    .setInitValue(subject.type)
-                    .setTitle(R.string.subject_type)
-                    .setOnConfirmListener(object :
-                        PopUpSelectableList.OnConfirmListener<TermSubject.TYPE> {
-                        override fun onConfirm(title: String?, key: TermSubject.TYPE) {
-                            subject.type = key
-                            viewModel.startSaveSubject()
-                        }
-
-                    })
-                    .show(supportFragmentManager, "pick")
-            }
-        }
+        binding.cardType.onCardClickListener = View.OnClickListener { }
         binding.cardTeacher.onCardClickListener = View.OnClickListener {
             viewModel.teachersLiveData.value?.let {
                 val keyword = it.firstOrNull() ?: return@let
@@ -232,18 +212,11 @@ class SubjectActivity : BaseActivity<SubjectViewModel, ActivitySubjectBinding>()
         }
         binding.buttonCourseResource.setOnClickListener {
             viewModel.subjectLiveData.value?.let { subject ->
-                val normalizedCode = CourseCodeUtils.normalize(subject.code)
-                val repoName = normalizedCode?.takeIf { it.isNotBlank() }
-                    ?: subject.code?.takeIf { it.isNotBlank() }
-                    ?: subject.name
-                ActivityUtils.startCourseReadmeActivity(
-                    getThis(),
-                    repoName,
-                    subject.name,
-                    normalizedCode?.takeIf { it.isNotBlank() }
-                        ?: subject.code?.takeIf { it.isNotBlank() }
-                        ?: repoName,
-                    "normal",
+                CourseResourceLinker.openReadme(
+                    context = getThis(),
+                    owner = this,
+                    courseCodeRaw = subject.code,
+                    courseNameRaw = subject.name,
                 )
             }
         }
@@ -275,6 +248,13 @@ class SubjectActivity : BaseActivity<SubjectViewModel, ActivitySubjectBinding>()
             )
             else -> getString(R.string.not_counted_in_GPA)
         }
+    }
+
+    private fun getSubjectCategoryDisplay(subject: TermSubject): String {
+        val line1 = subject.selectCategory?.takeIf { it.isNotBlank() } ?: getString(R.string.none)
+        val line2 = subject.field?.takeIf { it.isNotBlank() } ?: getString(R.string.none)
+        val line3 = subject.nature?.takeIf { it.isNotBlank() } ?: getSubjectTypeName(subject.type)
+        return listOf(line1, line2, line3).joinToString("\n")
     }
 
     private fun getSubjectCreditKey(subject: TermSubject): String {
