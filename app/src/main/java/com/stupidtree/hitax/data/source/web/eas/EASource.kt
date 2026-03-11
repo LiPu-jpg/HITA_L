@@ -443,10 +443,20 @@ class EASource internal constructor() : EASService {
 
     private fun looksLikeClassroom(text: String): Boolean {
         if (text.isBlank()) return false
-        if (text.contains("周") || text.contains("节") || text.contains("星期") || text.contains("第")) {
+        val trimmed = text.trim()
+        if (trimmed.contains("周") || trimmed.contains("节") || trimmed.contains("星期") || trimmed.contains("第")) {
             return false
         }
-        return text.any { it.isDigit() }
+        // Exclude strings with Chinese chars or dots (e.g. "软件设计1.")
+        if (trimmed.any { it in '\u4e00'..'\u9fa5' } || trimmed.contains('.')) {
+            return false
+        }
+        if (!trimmed.any { it.isDigit() }) return false
+        // Allow only simple room-like tokens: letters/digits/-/_
+        if (trimmed.any { !(it.isLetterOrDigit() || it == '-' || it == '_') }) {
+            return false
+        }
+        return true
     }
 
     private fun extractTeacher(kc: org.json.JSONObject, courseName: String?, kbxx: String): String? {
