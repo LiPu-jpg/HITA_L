@@ -1008,7 +1008,9 @@
     <string name="fade_enabled">启用背景渐变</string>
     <string name="title_activity_profile">个人资料</string>
     <string name="edit_my_profile">编辑资料</string>
-    <string name="button_sync">同步</string>
+    <string name="button_sync">导出</string>
+    <string name="timetable_export_title">导出课表</string>
+    <string name="timetable_export_empty">暂无可导出的课表</string>
     <string name="export">导出</string>
     <string name="prompt_import">从教务系统上导入学期课表</string>
     <string name="prompt_empty_classroom">查询校区教室空闲情况</string>

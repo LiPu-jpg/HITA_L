@@ -101,9 +101,16 @@ object StupidSync {
                                 }
                             }
                         }
-                        histories[5].ids = listOf()
+                        val marker = histories.maxByOrNull { h -> h.id } ?: History().also { h ->
+                            h.id = it.latestId
+                            h.uid = uid!!
+                            h.table = "sync_marker"
+                            h.action = History.ACTION.REQUIRE
+                            h.ids = listOf()
+                        }
+                        marker.ids = listOf()
                         historyDao?.clear()//PULL后清空记录
-                        historyDao?.addHistory(histories[5])
+                        historyDao?.addHistory(marker)
                     }
                 }
                 android.os.Handler(Looper.getMainLooper()).post {

@@ -4,6 +4,7 @@ import android.os.Bundle
 import android.view.HapticFeedbackConstants
 import android.view.View
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.recyclerview.widget.GridLayoutManager
 import com.google.android.material.appbar.AppBarLayout
 import com.stupidtree.component.data.DataState
@@ -16,8 +17,8 @@ import com.stupidtree.style.base.BaseListAdapter
 import com.stupidtree.hitax.utils.ActivityUtils
 import com.stupidtree.hitax.utils.EditModeHelper
 import com.stupidtree.hitax.utils.ImageUtils
-import com.stupidtree.sync.StupidSync
-import java.lang.Exception
+import android.content.Intent
+import android.net.Uri
 
 class TimetableManagerActivity :
     BaseActivity<TimetableManagerViewModel, ActivityTimetableManagerBinding>(),
@@ -90,44 +91,22 @@ class TimetableManagerActivity :
             }
         })
         binding.buttonSync.setOnClickListener {
-            it.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
-            binding.buttonSync.startAnimation()
-            StupidSync.sync(object : StupidSync.SyncCallback {
-                override fun onSuccess() {
-                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
-                        binding.buttonSync.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
-                    } else {
-                        binding.buttonSync.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
-                    }
-                    val bitmap =
-                        ImageUtils.getResourceBitmap(getThis(), R.drawable.ic_baseline_done_24)
-                    binding.buttonSync.doneLoadingAnimation(
-                        getColorPrimary(), bitmap
-                    )
-                    binding.buttonSync.postDelayed({
-                        binding.buttonSync.revertAnimation()
-                    }, 600)
-                    Toast.makeText(getThis(), R.string.sync_success, Toast.LENGTH_SHORT).show()
+            val timetables = listAdapter.beans
+            if (timetables.isEmpty()) {
+                Toast.makeText(getThis(), R.string.timetable_export_empty, Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            val names = timetables.map { it.name ?: getString(R.string.default_timetable_name) }
+                .toTypedArray()
+            AlertDialog.Builder(getThis())
+                .setTitle(R.string.timetable_export_title)
+                .setItems(names) { _, which ->
+                    it.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+                    binding.buttonSync.startAnimation()
+                    viewModel.exportToIcs(timetables[which])
                 }
-
-                override fun onFailed(e: Exception) {
-                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
-                        binding.buttonSync.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
-                    } else {
-                        binding.buttonSync.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
-                    }
-                    val bitmap =
-                        ImageUtils.getResourceBitmap(getThis(), R.drawable.ic_baseline_error_24)
-                    binding.buttonSync.doneLoadingAnimation(
-                        getColorPrimary(), bitmap
-                    )
-                    binding.buttonSync.postDelayed({
-                        binding.buttonSync.revertAnimation()
-                    }, 600)
-                    Toast.makeText(getThis(), R.string.sync_error, Toast.LENGTH_SHORT).show()
-                }
-
-            })
+                .setNegativeButton(android.R.string.cancel, null)
+                .show()
         }
         bindLiveData()
     }
@@ -154,10 +133,48 @@ class TimetableManagerActivity :
                                     || oldData.id != newData.id
                         }
                     })
+            }
+        }
+        viewModel.exportToICSResult.observe(this) {
+            if (it.state == DataState.STATE.SUCCESS) {
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+                    binding.buttonSync.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
+                } else {
+                    binding.buttonSync.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+                }
+                val bitmap =
+                    ImageUtils.getResourceBitmap(getThis(), R.drawable.ic_baseline_done_24)
+                binding.buttonSync.doneLoadingAnimation(
+                    getColorPrimary(), bitmap
+                )
+                binding.buttonSync.postDelayed({
+                    binding.buttonSync.revertAnimation()
+                }, 600)
+                Toast.makeText(getThis(), "已导出为ICS文件", Toast.LENGTH_SHORT).show()
+                val imageIntent = Intent(Intent.ACTION_SEND)
+                imageIntent.type = "application/octet-stream"
+                imageIntent.putExtra(Intent.EXTRA_STREAM, Uri.parse(it.data))
+                startActivity(Intent.createChooser(imageIntent, "分享"))
+            } else if (it.state == DataState.STATE.FETCH_FAILED) {
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+                    binding.buttonSync.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
+                } else {
+                    binding.buttonSync.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+                }
+                val bitmap =
+                    ImageUtils.getResourceBitmap(getThis(), R.drawable.ic_baseline_error_24)
+                binding.buttonSync.doneLoadingAnimation(
+                    getColorPrimary(), bitmap
+                )
+                binding.buttonSync.postDelayed({
+                    binding.buttonSync.revertAnimation()
+                }, 600)
+                Toast.makeText(getThis(), "导出失败", Toast.LENGTH_SHORT).show()
+            }
+
         }
 
     }
-}
 
 
 //    //当选择完Excel文件后调用此函数
