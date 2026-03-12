@@ -10,11 +10,11 @@ import com.google.android.material.appbar.AppBarLayout
 import com.stupidtree.hitax.R
 import com.stupidtree.hitax.data.model.eas.TermItem
 import com.stupidtree.hitax.data.model.timetable.TimePeriodInDay
+import com.stupidtree.hitax.data.repository.EASRepository
 import com.stupidtree.hitax.databinding.ActivityEasImportBinding
 import com.stupidtree.style.base.BaseListAdapter
 import com.stupidtree.component.data.DataState
 import com.stupidtree.hitax.data.model.eas.EASToken
-import com.stupidtree.hitax.data.source.preference.EasPreferenceSource
 import com.stupidtree.hitax.ui.eas.EASActivity
 import com.stupidtree.hitax.ui.widgets.PopUpCalendarPicker
 import com.stupidtree.style.widgets.PopUpCheckableList
@@ -30,6 +30,8 @@ class ImportTimetableActivity :
     EASActivity<ImportTimetableViewModel, ActivityEasImportBinding>() {
 
     private lateinit var scheduleStructureAdapter: TimetableStructureListAdapter
+    private var autoImportPending: Boolean = false
+    private var autoImportTriggered: Boolean = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -41,6 +43,7 @@ class ImportTimetableActivity :
         super.initViews()
         bindLiveData()
         initList()
+        autoImportPending = intent.getBooleanExtra("autoImport", false)
         binding.toolbar.title = ""
         binding.collapse.title = ""
         binding.appbar.addOnOffsetChangedListener(AppBarLayout.OnOffsetChangedListener { appBarLayout, verticalOffset ->
@@ -63,6 +66,10 @@ class ImportTimetableActivity :
 
         })
         binding.cardName.isEnabled = false
+        val token = EASRepository.getInstance(application).getEasToken()
+        val isUndergrad = token.stutype == EASToken.TYPE.UNDERGRAD
+        binding.stutype.isChecked = isUndergrad
+        viewModel.changeIsUndergraduate(isUndergrad)
         binding.termPick.setOnClickListener {
             val terms = viewModel.startGetAllTerms()
             val names = terms.map { getDisplayTermName(it, terms) }
@@ -111,6 +118,7 @@ class ImportTimetableActivity :
                 val label = getDisplayTermName(it, viewModel.startGetAllTerms())
                 binding.termText.text = label
                 binding.cardName.setTitle(label)
+                maybeAutoImport()
             }
         }
         viewModel.termsLiveData.observe(this) { data ->
@@ -128,6 +136,7 @@ class ImportTimetableActivity :
             } else {
                 binding.termText.setText(R.string.load_failed)
             }
+            maybeAutoImport()
         }
         viewModel.startDateLiveData.observe(this) {
             if ((it.state == DataState.STATE.SUCCESS || it.state == DataState.STATE.SPECIAL) && it.data != null) {
@@ -140,6 +149,7 @@ class ImportTimetableActivity :
             } else {
                 binding.cardDate.setTitle(R.string.no_valid_date)
             }
+            maybeAutoImport()
         }
         viewModel.scheduleStructureLiveData.observe(this) {
             AnimationUtils.enableLoadingButton(binding.buttonImport, !it.data.isNullOrEmpty())
@@ -148,6 +158,7 @@ class ImportTimetableActivity :
                     scheduleStructureAdapter.notifyItemChangedSmooth(data)
                 }
             }
+            maybeAutoImport()
         }
         viewModel.isUndergraduateLiveData.observe(this){
             binding.stutype.text = if(it) getString(R.string.undergrad_structure) else
@@ -186,6 +197,14 @@ class ImportTimetableActivity :
 //            binding.buttonImport.postDelayed({
 //                binding.buttonImport.revertAnimation()
 //            }, 600)
+        }
+    }
+
+    private fun maybeAutoImport() {
+        if (!autoImportPending || autoImportTriggered) return
+        if (viewModel.startImportTimetable()) {
+            autoImportTriggered = true
+            binding.buttonImport.startAnimation()
         }
     }
 
@@ -238,7 +257,7 @@ class ImportTimetableActivity :
 
     override fun onLoginCheckSuccess(retry:Boolean) {
         super.onLoginCheckSuccess(retry)
-        val token = EasPreferenceSource.getInstance(application).getEasToken()
+        val token = EASRepository.getInstance(application).getEasToken()
         binding.stutype.isChecked = (token.stutype==EASToken.TYPE.UNDERGRAD)
         viewModel.changeIsUndergraduate(binding.stutype.isChecked)
     }

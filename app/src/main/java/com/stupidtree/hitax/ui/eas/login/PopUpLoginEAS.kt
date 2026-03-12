@@ -10,8 +10,10 @@ import android.widget.Toast
 import androidx.core.content.ContextCompat
 import com.stupidtree.hitax.R
 import com.stupidtree.hitax.data.repository.EASRepository
+import com.stupidtree.hitax.data.repository.EasSettingsRepository
 import com.stupidtree.hitax.databinding.DialogBottomEasVerifyBinding
 import com.stupidtree.component.data.DataState
+import com.stupidtree.hitax.utils.ActivityUtils
 import com.stupidtree.hitax.utils.ImageUtils
 import com.stupidtree.style.widgets.TransparentModeledBottomSheetDialog
 
@@ -42,6 +44,12 @@ class PopUpLoginEAS :
                 getColorPrimary(), bitmap
             )
             if (it.state == DataState.STATE.SUCCESS) {
+                val autoReimportEnabled =
+                    EasSettingsRepository.getInstance(requireActivity().application)
+                        .isAutoReimportEnabled()
+                if (autoReimportEnabled) {
+                    ActivityUtils.startImportTimetableActivity(requireContext(), autoImport = true)
+                }
                 onResponseListener?.onSuccess(this)
 
             } else {

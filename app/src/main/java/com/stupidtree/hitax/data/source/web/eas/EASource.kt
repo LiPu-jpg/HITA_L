@@ -317,13 +317,12 @@ class EASource internal constructor() : EASService {
                         s.teacher = extractSelectedTeacher(subject)
                         s.credit = subject.optString("xf").toFloatOrNull() ?: 0f
                         s.key = subject.optString("id")
-                        s.field = subject.optString("kclbmc")
-                        s.selectCategory = subject.optString("xklbmc").ifBlank {
-                            subject.optString("xkfsmc").ifBlank {
-                                subject.optString("rwlxmc")
-                            }
-                        }
-                        s.nature = subject.optString("kcxzmc")
+                        s.field = optStringFirst(subject, listOf("kclbmc", "KCLBMC"))
+                        s.selectCategory = optStringFirst(
+                            subject,
+                            listOf("rwlxmc", "RWLXMC", "xkfsmc", "XKFSMC", "xklbmc", "XKLBMC")
+                        )
+                        s.nature = optStringFirst(subject, listOf("kcxzmc", "KCXZMC"))
                         when (subject.optString("kcxzmc")) {
                             "必修" -> s.type = TermSubject.TYPE.COM_A
                             "限选" -> s.type = TermSubject.TYPE.OPT_A
@@ -478,6 +477,14 @@ class EASource internal constructor() : EASService {
             if (v.isNotEmpty()) return v
         }
         return null
+    }
+
+    private fun optStringFirst(subject: org.json.JSONObject, keys: List<String>): String {
+        for (key in keys) {
+            val v = subject.optString(key, "").trim()
+            if (v.isNotEmpty()) return v
+        }
+        return ""
     }
 
     private fun extractYxkcList(jo: JSONObject?): org.json.JSONArray? {
@@ -957,7 +964,7 @@ class EASource internal constructor() : EASService {
                         s.school = item.optString("kkyxmc")
                         s.credit = item.optString("xf").toFloatOrNull() ?: 0f
                         s.key = item.optString("id")  // p_id 用于选课
-                        s.field = item.optString("kclbmc")
+                        s.field = optStringFirst(item, listOf("kclbmc", "KCLBMC"))
                         result.add(s)
                     }
                 }

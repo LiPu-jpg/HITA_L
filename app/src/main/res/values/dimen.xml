@@ -8,6 +8,6 @@
     <dimen name="timeline_card_elevation">0dp</dimen>
     <dimen name="timeline_width">8dp</dimen>
     <dimen name="task_card_elevation">0dp</dimen>
-    <dimen name="timetable_label_width">24dp</dimen>
+    <dimen name="timetable_label_width">28dp</dimen>
     <dimen name="timetable_date_height">24dp</dimen>
 </resources>

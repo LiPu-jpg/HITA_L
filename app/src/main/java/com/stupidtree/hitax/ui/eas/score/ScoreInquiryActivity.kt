@@ -8,6 +8,8 @@ import com.stupidtree.component.data.DataState
 import com.stupidtree.hitax.R
 import com.stupidtree.hitax.data.model.eas.CourseScoreItem
 import com.stupidtree.hitax.data.model.eas.TermItem
+import com.stupidtree.hitax.data.source.preference.ScoreReminderStore
+import com.stupidtree.hitax.data.work.ScoreReminderScheduler
 import com.stupidtree.hitax.data.source.web.service.EASService
 import com.stupidtree.hitax.databinding.ActivityEasScoreFirstBinding
 import com.stupidtree.hitax.ui.eas.EASActivity
@@ -20,6 +22,7 @@ import com.stupidtree.style.widgets.PopUpCheckableList
 class ScoreInquiryActivity :
     EASActivity<ScoreInquiryViewModel, ActivityEasScoreFirstBinding>() {
     lateinit var listAdapter: ScoresListAdapter
+    private lateinit var scoreReminderStore: ScoreReminderStore
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -88,6 +91,20 @@ class ScoreInquiryActivity :
     override fun initViews() {
         super.initViews()
         bindLiveData()
+        scoreReminderStore = ScoreReminderStore.getInstance(applicationContext)
+        binding.scoreReminderSwitch.isChecked = scoreReminderStore.isEnabled()
+        binding.scoreReminderSwitch.setOnCheckedChangeListener { _, isChecked ->
+            scoreReminderStore.setEnabled(isChecked)
+            if (isChecked) {
+                ScoreReminderScheduler.schedule(this)
+            } else {
+                ScoreReminderScheduler.cancel(this)
+            }
+        }
+        binding.scoreReminderCard.setOnClickListener {
+            val next = !binding.scoreReminderSwitch.isChecked
+            binding.scoreReminderSwitch.isChecked = next
+        }
         binding.refresh.setColorSchemeColors(getColorPrimary())
         binding.refresh.setOnRefreshListener { refresh() }
         listAdapter = ScoresListAdapter(this, mutableListOf())

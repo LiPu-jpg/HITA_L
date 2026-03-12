@@ -30,6 +30,11 @@ class EventItemViewModel(application: Application) : AndroidViewModel(applicatio
         subjectRepository.getSubjectById(it.subjectId)
     }
 
+    fun changeSubjectColor(color: Int) {
+        subjectLiveData.value?.let { subject ->
+            subjectRepository.actionChangeSubjectColor(subject.id, color)
+        }
+    }
 
     fun delete(){
         eventItemLiveData.value?.let {

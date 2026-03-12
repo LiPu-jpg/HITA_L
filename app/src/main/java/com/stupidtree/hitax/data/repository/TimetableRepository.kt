@@ -70,6 +70,7 @@ class TimetableRepository(val application: Application) {
         now.add(Calendar.DATE,1)
         val to = now.timeInMillis
         return eventItemDao.getEventsDuringSync(from, to)
+            .sortedBy { it.from.time }
     }
     /**
      * 获取[from,to)内的事件，包含颜色

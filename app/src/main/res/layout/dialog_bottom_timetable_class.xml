@@ -414,7 +414,7 @@
             android:layout_height="36dp"
             android:layout_gravity="end"
             android:layout_marginEnd="16dp"
-            android:text="@string/course_detail_open"
+            android:text="@string/course_change_color"
             android:textColor="@color/white"
             app:backgroundTint="?attr/colorPrimary"
             app:cornerRadius="18dp"

@@ -4,6 +4,9 @@ import android.app.TimePickerDialog
 import android.os.Bundle
 import android.text.format.DateFormat
 import android.view.View
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.updatePadding
 import androidx.core.view.isVisible
 import com.google.android.material.snackbar.Snackbar
 import com.stupidtree.component.data.DataState
@@ -47,6 +50,7 @@ class CourseContributionActivity :
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setToolbarActionBack(binding.toolbar)
+        applyStatusBarInsets()
     }
 
     override fun initViews() {
@@ -203,6 +207,16 @@ class CourseContributionActivity :
             selectedDate.get(Calendar.YEAR),
             selectedDate.get(Calendar.MONTH) + 1,
         )
+    }
+
+    private fun applyStatusBarInsets() {
+        val target = binding.root
+        val originalTop = target.paddingTop
+        ViewCompat.setOnApplyWindowInsetsListener(target) { view, insets ->
+            val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+            view.updatePadding(top = originalTop + bars.top)
+            insets
+        }
     }
 
     private fun applyDefaultModeIfNeeded(summary: CourseStructureSummary) {

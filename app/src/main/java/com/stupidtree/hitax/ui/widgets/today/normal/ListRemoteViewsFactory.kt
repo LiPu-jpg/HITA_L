@@ -8,6 +8,7 @@ import android.os.Bundle
 import android.text.TextUtils
 import android.widget.RemoteViews
 import android.widget.RemoteViewsService
+import android.graphics.Color
 import com.stupidtree.hitax.R
 import com.stupidtree.hitax.data.model.timetable.EventItem
 import com.stupidtree.hitax.data.repository.TimetableRepository
@@ -18,6 +19,7 @@ internal class ListRemoteViewsFactory(val mContext: Context, intent: Intent) :
     RemoteViewsService.RemoteViewsFactory {
     //private val executor = Executors.newSingleThreadExecutor()
     private val mBeans = mutableListOf<EventItem>()
+    private var highlightIndex: Int = -1
     private val appWidgetId = intent.getIntExtra(
         AppWidgetManager.EXTRA_APPWIDGET_ID,
         AppWidgetManager.INVALID_APPWIDGET_ID
@@ -39,6 +41,17 @@ internal class ListRemoteViewsFactory(val mContext: Context, intent: Intent) :
         val result =
             if (TextUtils.isEmpty(place)) mContext.getString(R.string.unknown_location_widget) else place
         rv.setTextViewText(R.id.location, result)
+
+        if (position == highlightIndex) {
+            val accent = mContext.getColor(R.color.cruel_summer_primary)
+            rv.setInt(R.id.icon, "setBackgroundResource", R.drawable.element_round_primary)
+            rv.setTextColor(R.id.name, accent)
+            rv.setTextColor(R.id.time, accent)
+        } else {
+            rv.setInt(R.id.icon, "setBackgroundResource", R.drawable.element_round_blue)
+            rv.setTextColor(R.id.name, Color.parseColor("#202020"))
+            rv.setTextColor(R.id.time, Color.parseColor("#66202020"))
+        }
 
         val lockIntent = Intent()
         lockIntent.putExtra(EVENT_EXTRA, event.id)
@@ -74,7 +87,8 @@ internal class ListRemoteViewsFactory(val mContext: Context, intent: Intent) :
             TimetableRepository.getInstance(mContext.applicationContext as Application)
         val events = timetableRepo.getTodayEventsSync()
         mBeans.clear()
-        mBeans.addAll(events)
+        mBeans.addAll(events.sortedBy { it.from.time })
+        highlightIndex = findHighlightIndex(mBeans)
     }
 
 
@@ -94,6 +108,13 @@ internal class ListRemoteViewsFactory(val mContext: Context, intent: Intent) :
 
     override fun onDestroy() {
         mBeans.clear()
+    }
+
+    private fun findHighlightIndex(events: List<EventItem>): Int {
+        val now = System.currentTimeMillis()
+        val currentIndex = events.indexOfFirst { now in it.from.time until it.to.time }
+        if (currentIndex >= 0) return currentIndex
+        return events.indexOfFirst { it.from.time > now }
     }
 
 }

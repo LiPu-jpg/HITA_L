@@ -115,6 +115,7 @@
     <string name="navi_course_submit_pr_sub">只追加新的课程内容，不直接改动原文</string>
     <string name="course_resource_open">查看课程资源</string>
     <string name="course_detail_open">查看课程详情内容</string>
+    <string name="course_change_color">换颜色</string>
     <string name="course_resource_contribute">追加课程补充</string>
     <string name="course_resource_title">课程资源</string>
     <string name="course_resource_submit_title">选择课程并追加内容</string>
@@ -123,6 +124,7 @@
     <string name="course_resource_failed">课程资源加载失败</string>
     <string name="course_readme_loading">正在加载 README…</string>
     <string name="course_readme_source">来源：%s</string>
+    <string name="course_readme_missing">还没有这门课程的内容，可以点击追加课程内容在临时仓库进行 PR。</string>
     <string name="course_contribution_title">追加课程内容</string>
     <string name="course_contribution_type">追加类型</string>
     <string name="course_contribution_course">子课程</string>
@@ -363,6 +365,10 @@
     <string name="score_category">课程类别</string>
     <string name="score_school_name">开设院系</string>
     <string name="score_assess_method">考察方式</string>
+    <string name="score_reminder_title">成绩提醒</string>
+    <string name="score_reminder_subtitle">有新成绩时提醒我</string>
+    <string name="score_reminder_notification_title">有新成绩</string>
+    <string name="score_reminder_notification_more">%s 等%d门课程已出成绩</string>
     <string name="exam_time">时间</string>
     <string name="exam_type">类型</string>
     <string name="pick_exam_term">选择学期</string>
@@ -384,6 +390,8 @@
     <string name="exam_memo_delete_title">删除备忘录？</string>
     <string name="exam_memo_delete_confirm">删除</string>
     <string name="dialog_view_course_detail">查看课程详情内容</string>
+    <string name="timetable_label_mode_period">左侧显示节次</string>
+    <string name="timetable_auto_reimport">登录后自动导入课表</string>
     <string name="exam_location">地点</string>
     <string name="exam_term">学期</string>
     <string name="exam_campus">学校</string>

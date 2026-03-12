@@ -21,6 +21,7 @@ import androidx.fragment.app.Fragment
 import androidx.viewpager.widget.ViewPager.OnPageChangeListener
 import com.stupidtree.component.data.DataState
 import com.stupidtree.hitax.R
+import com.stupidtree.hitax.data.repository.EasSettingsRepository
 import com.stupidtree.hitax.data.repository.EASRepository
 import com.stupidtree.hitax.databinding.ActivityMainBinding
 import com.stupidtree.hitax.ui.about.ActivityAbout
@@ -49,6 +50,8 @@ class MainActivity : BaseActivity<MainViewModel, ActivityMainBinding>(),
     /**
      * 抽屉里的View
      */
+    private val autoReimportIntervalMs = 12 * 60 * 60 * 1000L
+    private var autoReimportAttempted = false
     private var drawerAvatar: ImageView? = null
     private var drawerNickname: TextView? = null
     private var drawerUsername: TextView? = null
@@ -120,6 +123,7 @@ class MainActivity : BaseActivity<MainViewModel, ActivityMainBinding>(),
         super.onStart()
         viewModel.startRefreshUser()
         refreshTheme()
+        maybeAutoReimportTimetable()
         try {
             val code = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 packageManager.getPackageInfo(
@@ -144,6 +148,24 @@ class MainActivity : BaseActivity<MainViewModel, ActivityMainBinding>(),
             e.printStackTrace()
         }
 
+    }
+
+    private fun maybeAutoReimportTimetable() {
+        val settings = EasSettingsRepository.getInstance(application)
+        if (!settings.isAutoReimportEnabled()) return
+        val token = EASRepository.getInstance(application).getEasToken()
+        if (!token.isLogin()) return
+        if (autoReimportAttempted) return
+        val now = System.currentTimeMillis()
+        val last = settings.getLastAutoReimportTs()
+        if (now - last < autoReimportIntervalMs) return
+        autoReimportAttempted = true
+        val isUndergrad = token.stutype == com.stupidtree.hitax.data.model.eas.EASToken.TYPE.UNDERGRAD
+        EASRepository.getInstance(application).startAutoImportCurrentTimetable(isUndergrad) { success ->
+            if (success) {
+                settings.setLastAutoReimportTs(System.currentTimeMillis())
+            }
+        }
     }
 
 

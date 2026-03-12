@@ -49,6 +49,8 @@ class SubjectActivity : BaseActivity<SubjectViewModel, ActivitySubjectBinding>()
         binding.cardType.title?.maxLines = 3
         binding.cardType.title?.ellipsize = TextUtils.TruncateAt.END
         binding.cardType.title?.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
+        binding.cardType.title?.setHorizontallyScrolling(false)
+        binding.cardType.title?.isSelected = false
         binding.cardType.setSubtitle("")
         viewModel.subjectLiveData.observe(this) {
             binding.collapse.title = it.name

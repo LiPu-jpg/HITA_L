@@ -5,15 +5,18 @@ import androidx.lifecycle.AndroidViewModel
 import com.stupidtree.component.data.SharedPreferenceBooleanLiveData
 import com.stupidtree.component.data.SharedPreferenceIntLiveData
 import com.stupidtree.hitax.data.repository.SubjectRepository
+import com.stupidtree.hitax.data.repository.EasSettingsRepository
 import com.stupidtree.hitax.data.repository.TimetableRepository
 import com.stupidtree.hitax.data.repository.TimetableStyleRepository
 import com.stupidtree.hitax.data.repository.TimetableStyleRepository.Companion.KEY_COLOR_ENABLE
 import com.stupidtree.hitax.data.repository.TimetableStyleRepository.Companion.KEY_DRAW_BG_LINE
 import com.stupidtree.hitax.data.repository.TimetableStyleRepository.Companion.KEY_FADE_ENABLE
+import com.stupidtree.hitax.data.repository.TimetableStyleRepository.Companion.KEY_LABEL_PERIOD
 import com.stupidtree.hitax.data.repository.TimetableStyleRepository.Companion.KEY_START_DATE
 class TimetablePanelViewModel(application: Application) : AndroidViewModel(application) {
 
     private val timetableStyleRepository = TimetableStyleRepository.getInstance(application)
+    private val easSettingsRepository = EasSettingsRepository.getInstance(application)
     private val subjectRepository = SubjectRepository.getInstance(application)
     private val timetableRepository = TimetableRepository.getInstance(application)
 
@@ -27,6 +30,10 @@ class TimetablePanelViewModel(application: Application) : AndroidViewModel(appli
 
     val fadeEnableLiveData: SharedPreferenceBooleanLiveData
         get() = timetableStyleRepository.fadeEnableLiveData
+    val periodLabelLiveData: SharedPreferenceBooleanLiveData
+        get() = timetableStyleRepository.periodLabelLiveData
+    val autoReimportLiveData: SharedPreferenceBooleanLiveData
+        get() = easSettingsRepository.autoReimportLiveData
 
 
     fun changeStartDate(hour: Int, minute: Int) {
@@ -41,6 +48,27 @@ class TimetablePanelViewModel(application: Application) : AndroidViewModel(appli
     }
     fun setFadeEnable(draw:Boolean) {
         timetableStyleRepository.putData(KEY_FADE_ENABLE,draw)
+    }
+    fun setPeriodLabelEnabled(enabled: Boolean) {
+        timetableStyleRepository.putData(KEY_LABEL_PERIOD, enabled)
+    }
+    fun setAutoReimportEnabled(enabled: Boolean) {
+        easSettingsRepository.setAutoReimport(enabled)
+    }
+
+    fun triggerAutoReimportNow() {
+        val token = com.stupidtree.hitax.data.repository.EASRepository
+            .getInstance(getApplication())
+            .getEasToken()
+        if (!token.isLogin()) return
+        val isUndergrad = token.stutype == com.stupidtree.hitax.data.model.eas.EASToken.TYPE.UNDERGRAD
+        com.stupidtree.hitax.data.repository.EASRepository
+            .getInstance(getApplication())
+            .startAutoImportCurrentTimetable(isUndergrad) { success ->
+                if (success) {
+                    easSettingsRepository.setLastAutoReimportTs(System.currentTimeMillis())
+                }
+            }
     }
 
     fun startResetColor(){

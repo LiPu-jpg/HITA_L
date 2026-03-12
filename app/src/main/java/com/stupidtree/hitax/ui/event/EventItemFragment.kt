@@ -14,6 +14,7 @@ import com.stupidtree.hitax.utils.ActivityUtils
 import com.stupidtree.hitax.utils.TimeTools
 import com.stupidtree.hitax.utils.CourseResourceLinker
 import com.stupidtree.style.base.BaseFragment
+import com.stupidtree.style.widgets.PopUpColorPicker
 import com.stupidtree.style.widgets.PopUpText
 import java.util.*
 
@@ -40,6 +41,7 @@ class EventItemFragment : BaseFragment<EventItemViewModel, DialogBottomTimetable
 //    }
 
     var parent: EventParent? = null
+    private var currentSubject: com.stupidtree.hitax.data.model.timetable.TermSubject? = null
 //    override fun onAttach(context: Context) {
 //        super.onAttach(context)
 //        if (context is EventParent) {
@@ -236,11 +238,15 @@ class EventItemFragment : BaseFragment<EventItemViewModel, DialogBottomTimetable
 
     override fun initViews(view: View) {
         arguments?.let {
-            viewModel.eventItemLiveData.value = it["event"] as EventItem?
+            @Suppress("DEPRECATION")
+            viewModel.eventItemLiveData.value = it.getSerializable("event") as? EventItem
         }
 
         viewModel.eventItemLiveData.observe(this) {
             setInfo(it)
+        }
+        viewModel.subjectLiveData.observe(this) { subject ->
+            currentSubject = subject
         }
         viewModel.progressLiveData.observe(this) {
             binding?.courseProgress?.progress =
@@ -250,14 +256,27 @@ class EventItemFragment : BaseFragment<EventItemViewModel, DialogBottomTimetable
         }
 
 
-        binding?.subject?.setOnClickListener(View.OnClickListener {
+        binding?.subject?.setOnClickListener {
+            val subject = currentSubject
+            if (subject == null) {
+                android.widget.Toast.makeText(requireContext(), R.string.loading, android.widget.Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            PopUpColorPicker().setOnColorSelectListener(object :
+                PopUpColorPicker.OnColorSelectedListener {
+                override fun onSelected(color: Int) {
+                    viewModel.changeSubjectColor(color)
+                }
+            }).initColor(subject.color).show(childFragmentManager, "pickColor")
+        }
+        binding?.nameLayout?.setOnClickListener {
             if (requireContext() !is SubjectActivity) {
                 viewModel.eventItemLiveData.value?.let { event ->
                     ActivityUtils.startSubjectActivity(requireContext(), event.subjectId)
                 }
             }
-        })
-        binding?.subject?.setOnLongClickListener {
+        }
+        binding?.nameLayout?.setOnLongClickListener {
             val subject = viewModel.subjectLiveData.value
             if (subject != null) {
                 CourseResourceLinker.openReadme(
@@ -269,7 +288,6 @@ class EventItemFragment : BaseFragment<EventItemViewModel, DialogBottomTimetable
             }
             true
         }
-        binding?.nameLayout?.setOnClickListener { binding?.subject?.callOnClick() }
         binding?.delete?.setOnClickListener {
             PopUpText().setTitle(R.string.dialog_title_sure_delete)
                 .setOnConfirmListener(object : PopUpText.OnConfirmListener {

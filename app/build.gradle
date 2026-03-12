@@ -14,8 +14,8 @@ android {
         minSdkVersion 23
         targetSdk 33
         compileSdk 35
-        versionCode 2026031105
-        versionName "1.4.5"
+        versionCode 20260312
+        versionName "1.4.6"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         javaCompileOptions {
@@ -28,8 +28,8 @@ android {
         buildConfigField "String", "HOA_BASE_URL", '"https://liulipule.com/"'
         buildConfigField "String", "HOA_API_KEY", '""'
         buildConfigField "String", "UPDATE_URL", '"https://github.com/LiPu-jpg/HITA_L/releases/latest"'
-        buildConfigField "String", "UPDATE_VERSION_NAME", '"1.4.5"'
-        buildConfigField "long", "UPDATE_VERSION_CODE", "2026031105L"
+        buildConfigField "String", "UPDATE_VERSION_NAME", '"1.4.6"'
+        buildConfigField "long", "UPDATE_VERSION_CODE", "20260312L"
         buildConfigField "String", "UPDATE_LOG", '""'
         buildConfigField "boolean", "UPDATE_ALLOW_PRERELEASE", "true"
     }

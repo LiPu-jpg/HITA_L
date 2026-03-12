@@ -27,6 +27,8 @@ class TimetableViewModel(application: Application) :
         }
     val startTimeLiveData: LiveData<Int>
         get() = timetableStyleRepository.startTimeLiveData
+    val periodLabelLiveData: LiveData<Boolean>
+        get() = timetableStyleRepository.periodLabelLiveData
 
     var currentPageStartDate: MutableLiveData<Long>
     var currentIndex = 0

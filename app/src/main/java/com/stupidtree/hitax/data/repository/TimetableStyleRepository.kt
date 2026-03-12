@@ -14,6 +14,7 @@ class TimetableStyleRepository(application: Application) {
     val drawBGLinesLiveData = timetableStyleSP.booleanLiveData(KEY_DRAW_BG_LINE, true)
     val colorEnableLiveData = timetableStyleSP.booleanLiveData(KEY_COLOR_ENABLE, true)
     val fadeEnableLiveData = timetableStyleSP.booleanLiveData(KEY_FADE_ENABLE, true)
+    val periodLabelLiveData = timetableStyleSP.booleanLiveData(KEY_LABEL_PERIOD, false)
 
 
     fun putData(key: String, value: Int) {
@@ -55,6 +56,13 @@ class TimetableStyleRepository(application: Application) {
                 sheet.value = it
             }
         }
+        sheet.addSource(periodLabelLiveData) { enabled ->
+            val ts = sheet.value
+            ts?.let {
+                it.usePeriodLabel = enabled
+                sheet.value = it
+            }
+        }
         return sheet
     }
 
@@ -70,5 +78,6 @@ class TimetableStyleRepository(application: Application) {
         const val KEY_DRAW_BG_LINE = "draw_bg_line"
         const val KEY_COLOR_ENABLE = "color_enable"
         const val KEY_FADE_ENABLE = "fade_enable"
+        const val KEY_LABEL_PERIOD = "label_period"
     }
 }

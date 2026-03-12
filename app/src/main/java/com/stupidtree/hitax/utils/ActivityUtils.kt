@@ -15,6 +15,7 @@ import com.stupidtree.hitax.R
 import com.stupidtree.hitax.data.repository.EASRepository
 import com.stupidtree.hitax.ui.eas.login.PopUpLoginEAS
 import com.stupidtree.hitax.ui.myprofile.MyProfileActivity
+import com.stupidtree.hitax.ui.eas.imp.ImportTimetableActivity
 import com.stupidtree.hitax.ui.resource.CourseContributionActivity
 import com.stupidtree.hitax.ui.resource.CourseReadmeActivity
 import com.stupidtree.hitax.ui.resource.CourseResourceSearchActivity
@@ -72,6 +73,12 @@ object ActivityUtils {
     }
     fun startMyProfileActivity(from: Context) {
         val i = Intent(from, MyProfileActivity::class.java)
+        from.startActivity(i)
+    }
+
+    fun startImportTimetableActivity(from: Context, autoImport: Boolean = false) {
+        val i = Intent(from, ImportTimetableActivity::class.java)
+        i.putExtra("autoImport", autoImport)
         from.startActivity(i)
     }
 

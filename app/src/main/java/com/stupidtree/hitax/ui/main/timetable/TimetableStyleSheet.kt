@@ -15,6 +15,7 @@ class TimetableStyleSheet {
     var cardIconEnabled: Boolean = true
     var cardOpacity: Int = 95
     var cardHeight: Int = 180
+    var usePeriodLabel: Boolean = false
     var startTime: Int = 800
         set(value) {
             startTimeInDay = TimeInDay(value / 100, value % 100)
@@ -53,6 +54,7 @@ class TimetableStyleSheet {
         if (cardIconEnabled != other.cardIconEnabled) return false
         if (cardOpacity != other.cardOpacity) return false
         if (cardHeight != other.cardHeight) return false
+        if (usePeriodLabel != other.usePeriodLabel) return false
         if (startTime != other.startTime) return false
         if (todayBGColor != other.todayBGColor) return false
         if (titleGravity != other.titleGravity) return false
@@ -74,6 +76,7 @@ class TimetableStyleSheet {
         result = 31 * result + cardIconEnabled.hashCode()
         result = 31 * result + cardOpacity
         result = 31 * result + cardHeight
+        result = 31 * result + usePeriodLabel.hashCode()
         result = 31 * result + startTime
         result = 31 * result + todayBGColor
         result = 31 * result + titleGravity

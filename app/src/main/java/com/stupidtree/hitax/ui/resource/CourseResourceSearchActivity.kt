@@ -7,6 +7,9 @@ import android.view.ViewGroup
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import android.widget.TextView
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.updatePadding
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import androidx.viewbinding.ViewBinding
@@ -36,6 +39,7 @@ class CourseResourceSearchActivity :
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setToolbarActionBack(binding.toolbar)
+        applyStatusBarInsets()
     }
 
     override fun initViews() {
@@ -101,6 +105,16 @@ class CourseResourceSearchActivity :
         imm?.hideSoftInputFromWindow(binding.searchInput.windowToken, 0)
         binding.swipeRefresh.isRefreshing = true
         viewModel.search(query)
+    }
+
+    private fun applyStatusBarInsets() {
+        val target = binding.root
+        val originalTop = target.paddingTop
+        ViewCompat.setOnApplyWindowInsetsListener(target) { view, insets ->
+            val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+            view.updatePadding(top = originalTop + bars.top)
+            insets
+        }
     }
 
     inner class CourseResourceAdapter(mBeans: MutableList<CourseResourceItem>) :

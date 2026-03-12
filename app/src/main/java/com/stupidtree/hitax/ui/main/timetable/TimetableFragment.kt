@@ -22,6 +22,7 @@ import com.stupidtree.hitax.databinding.FragmentTimetableBinding
 import com.stupidtree.hitax.ui.event.add.PopupAddEvent
 import com.stupidtree.hitax.ui.main.timetable.views.TimeTableView
 import com.stupidtree.hitax.ui.main.timetable.views.TimetableWeekView
+import com.stupidtree.hitax.ui.main.timetable.views.LeftLabelView
 import com.stupidtree.hitax.utils.ActivityUtils
 import com.stupidtree.hitax.utils.EventsUtils
 import com.stupidtree.hitax.utils.TimeTools
@@ -128,6 +129,11 @@ class TimetableFragment :
         }
         viewModel.startTimeLiveData.observe(this) {
             binding?.labels?.setStartDate(it / 100, it % 100)
+        }
+        viewModel.periodLabelLiveData.observe(this) { enabled ->
+            binding?.labels?.setLabelMode(
+                if (enabled) LeftLabelView.LabelMode.PERIOD else LeftLabelView.LabelMode.TIME
+            )
         }
         for (i in 0 until WINDOW_SIZE) {
             viewModel.windowStartData[i].observe(this) { date ->

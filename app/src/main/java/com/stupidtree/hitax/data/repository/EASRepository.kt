@@ -17,6 +17,7 @@ import com.stupidtree.hitax.data.model.timetable.TermSubject
 import com.stupidtree.hitax.data.model.timetable.TimePeriodInDay
 import com.stupidtree.hitax.data.model.timetable.Timetable
 import com.stupidtree.hitax.data.source.preference.EasPreferenceSource
+import com.stupidtree.hitax.data.source.preference.TimetablePreferenceSource
 import com.stupidtree.hitax.data.source.web.eas.EASource
 import com.stupidtree.hitax.data.source.web.service.EASService
 import com.stupidtree.hitax.ui.eas.classroom.BuildingItem
@@ -32,6 +33,7 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
 class EASRepository internal constructor(application: Application) {
+    private val appContext = application.applicationContext
     private val easService: EASService = EASource()
     private var easPreferenceSource = EasPreferenceSource.getInstance(application)
     private var eventItemDao = AppDatabase.getDatabase(application).eventItemDao()
@@ -426,6 +428,70 @@ class EASRepository internal constructor(application: Application) {
         latch.await(4, TimeUnit.SECONDS)
         mainHandler.post { live.removeObserver(observer) }
         return SelectedSubjectMeta(teacherMap, creditMap, fieldMap, selectCategoryMap, natureMap)
+    }
+
+    fun startAutoImportCurrentTimetable(
+        isUndergraduate: Boolean,
+        onResult: ((Boolean) -> Unit)? = null
+    ) {
+        val token = easPreferenceSource.getEasToken()
+        if (!token.isLogin()) {
+            onResult?.invoke(false)
+            return
+        }
+        Thread {
+            val termsState = awaitLiveData(easService.getAllTerms(token), 6)
+            val term = termsState.data?.firstOrNull { it.isCurrent } ?: termsState.data?.firstOrNull()
+            if (term == null) {
+                onResult?.invoke(false)
+                return@Thread
+            }
+            val startState = awaitLiveData(easService.getStartDate(token, term), 6)
+            val startDate = startState.data
+            val scheduleState = awaitLiveData(
+                easService.getScheduleStructure(term, isUndergraduate, token),
+                6
+            )
+            val schedule = scheduleState.data ?: TimetablePreferenceSource.getInstance(appContext).getSchedule()
+            if (startDate == null) {
+                onResult?.invoke(false)
+                return@Thread
+            }
+            val importLive = MediatorLiveData<DataState<Boolean>>()
+            val latch = CountDownLatch(1)
+            var success = false
+            val observer = Observer<DataState<Boolean>> { state ->
+                if (state.state == DataState.STATE.SUCCESS || state.state == DataState.STATE.FETCH_FAILED) {
+                    success = state.state == DataState.STATE.SUCCESS
+                    latch.countDown()
+                }
+            }
+            val mainHandler = Handler(Looper.getMainLooper())
+            mainHandler.post {
+                importLive.observeForever(observer)
+                startImportTimetableOfTerm(term, startDate, schedule, importLive)
+            }
+            latch.await(25, TimeUnit.SECONDS)
+            mainHandler.post { importLive.removeObserver(observer) }
+            onResult?.invoke(success)
+        }.start()
+    }
+
+    private fun <T> awaitLiveData(
+        live: LiveData<DataState<T>>,
+        timeoutSeconds: Long
+    ): DataState<T> {
+        val latch = CountDownLatch(1)
+        var result = DataState<T>(DataState.STATE.FETCH_FAILED)
+        val observer = Observer<DataState<T>> { state ->
+            result = state
+            latch.countDown()
+        }
+        val mainHandler = Handler(Looper.getMainLooper())
+        mainHandler.post { live.observeForever(observer) }
+        latch.await(timeoutSeconds, TimeUnit.SECONDS)
+        mainHandler.post { live.removeObserver(observer) }
+        return result
     }
 
     fun getEasToken(): EASToken {

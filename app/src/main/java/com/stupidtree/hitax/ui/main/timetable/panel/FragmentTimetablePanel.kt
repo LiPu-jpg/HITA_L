@@ -37,6 +37,15 @@ class FragmentTimetablePanel : TransparentModeledBottomSheetDialog<TimetablePane
         binding?.fadeEnable?.setOnCheckedChangeListener{_,isChecked->
             viewModel.setFadeEnable(isChecked)
         }
+        binding?.periodLabel?.setOnCheckedChangeListener { _, isChecked ->
+            viewModel.setPeriodLabelEnabled(isChecked)
+        }
+        binding?.autoReimport?.setOnCheckedChangeListener { _, isChecked ->
+            viewModel.setAutoReimportEnabled(isChecked)
+            if (isChecked) {
+                viewModel.triggerAutoReimportNow()
+            }
+        }
 
     }
 
@@ -53,6 +62,12 @@ class FragmentTimetablePanel : TransparentModeledBottomSheetDialog<TimetablePane
         }
         viewModel.fadeEnableLiveData.observe(this) {
             binding?.fadeEnable?.isChecked = it
+        }
+        viewModel.periodLabelLiveData.observe(this) {
+            binding?.periodLabel?.isChecked = it
+        }
+        viewModel.autoReimportLiveData.observe(this) {
+            binding?.autoReimport?.isChecked = it
         }
     }
 

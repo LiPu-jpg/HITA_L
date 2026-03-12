@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <androidx.coordinatorlayout.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    xmlns:custom="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
@@ -195,8 +194,8 @@
                     android:layout_width="@dimen/timetable_label_width"
                     android:layout_height="match_parent"
                     android:layout_marginTop="@dimen/timetable_date_height"
-                    custom:timeLabelColor="?attr/textColorSecondary"
-                    custom:timeLabelSize="11sp" />
+                    app:timeLabelColor="?attr/textColorSecondary"
+                    app:timeLabelSize="11sp" />
 
                 <com.stupidtree.hitax.ui.widgets.WrapContentHeightViewPager
                     android:id="@+id/pager"

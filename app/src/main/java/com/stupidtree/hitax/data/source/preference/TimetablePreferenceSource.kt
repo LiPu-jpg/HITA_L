@@ -31,6 +31,10 @@ class TimetablePreferenceSource(private val context: Context) {
             val tp: TimePeriodInDay = Gson().fromJson(sharedPreferences!!.getString("class_$i", "{}"), TimePeriodInDay::class.java)
             result.add(tp)
         }
+        if (isLegacyUndergraduateSchedule(result)) {
+            result = undergraduate_default
+            saveSchedules(result)
+        }
         return result
     }
 
@@ -60,18 +64,29 @@ class TimetablePreferenceSource(private val context: Context) {
 
         var undergraduate_default = mutableListOf(
                 TimePeriodInDay(TimeInDay(8, 30), TimeInDay(9, 20)),
-                TimePeriodInDay(TimeInDay(9, 30), TimeInDay(10, 15)),
+                TimePeriodInDay(TimeInDay(9, 25), TimeInDay(10, 15)),
                 TimePeriodInDay(TimeInDay(10, 30), TimeInDay(11, 20)),
-                TimePeriodInDay(TimeInDay(11, 30), TimeInDay(12, 15)),
-                TimePeriodInDay(TimeInDay(13, 45), TimeInDay(14, 35)),
-                TimePeriodInDay(TimeInDay(14, 40), TimeInDay(15, 30)),
-                TimePeriodInDay(TimeInDay(15, 45), TimeInDay(16, 35)),
-                TimePeriodInDay(TimeInDay(16, 30), TimeInDay(17, 30)),
-                TimePeriodInDay(TimeInDay(18, 30), TimeInDay(19, 20)),
-                TimePeriodInDay(TimeInDay(19, 25), TimeInDay(20, 15)),
-                TimePeriodInDay(TimeInDay(20, 30), TimeInDay(21, 20)),
-                TimePeriodInDay(TimeInDay(21, 25), TimeInDay(22, 15)),
-                TimePeriodInDay(TimeInDay(22, 30), TimeInDay(23, 20)))
+                TimePeriodInDay(TimeInDay(11, 25), TimeInDay(12, 15)),
+                TimePeriodInDay(TimeInDay(14, 0), TimeInDay(14, 50)),
+                TimePeriodInDay(TimeInDay(14, 55), TimeInDay(15, 45)),
+                TimePeriodInDay(TimeInDay(16, 0), TimeInDay(16, 50)),
+                TimePeriodInDay(TimeInDay(16, 55), TimeInDay(17, 45)),
+                TimePeriodInDay(TimeInDay(18, 45), TimeInDay(19, 35)),
+                TimePeriodInDay(TimeInDay(19, 40), TimeInDay(20, 30)),
+                TimePeriodInDay(TimeInDay(20, 45), TimeInDay(21, 35)),
+                TimePeriodInDay(TimeInDay(21, 40), TimeInDay(22, 30)))
+
+        private fun isLegacyUndergraduateSchedule(schedule: List<TimePeriodInDay>): Boolean {
+            if (schedule.size < 12) return false
+            val first = schedule[0]
+            val second = schedule[1]
+            val fifth = schedule.getOrNull(4)
+            return first.from.hour == 8 && first.from.minute == 30 &&
+                first.to.hour == 9 && first.to.minute == 20 &&
+                second.from.hour == 9 && second.from.minute == 30 &&
+                second.to.hour == 10 && second.to.minute == 15 &&
+                fifth?.from?.hour == 13 && fifth.from.minute == 45
+        }
     }
 
 }
