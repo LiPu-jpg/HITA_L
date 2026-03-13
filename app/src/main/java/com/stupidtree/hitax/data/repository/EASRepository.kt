@@ -24,6 +24,7 @@ import com.stupidtree.hitax.ui.eas.classroom.BuildingItem
 import com.stupidtree.hitax.ui.eas.classroom.ClassroomItem
 import com.stupidtree.hitax.utils.LiveDataUtils
 import com.stupidtree.hitax.utils.TimeTools.getDateAtWOT
+import com.stupidtree.hitax.utils.TermNameFormatter
 import com.stupidtree.hitax.utils.CourseCodeUtils
 import com.stupidtree.sync.StupidSync
 import com.stupidtree.sync.data.model.History
@@ -50,7 +51,7 @@ class EASRepository internal constructor(application: Application) {
                 it.data?.let { it1 -> easPreferenceSource.saveEasToken(it1) }
                 return@map DataState(true, DataState.STATE.SUCCESS)
             }
-            return@map DataState(false, it.state)
+            return@map DataState(false, it.state).apply { message = it.message }
         }
     }
 
@@ -397,11 +398,7 @@ class EASRepository internal constructor(application: Application) {
     }
 
     private fun buildTimetableName(term: TermItem): String {
-        val year = term.yearName.trim()
-        val termName = term.termName.trim()
-        if (year.isEmpty()) return termName
-        if (termName.isEmpty()) return year
-        return if (termName.contains(year)) termName else "$year $termName"
+        return TermNameFormatter.shortTermName(term.termName, term.name)
     }
 
     private data class SelectedSubjectMeta(
