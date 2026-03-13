@@ -22,6 +22,7 @@ import com.stupidtree.hitax.ui.widgets.PopUpTimePeriodPicker
 import com.stupidtree.hitax.ui.widgets.WidgetUtils
 import com.stupidtree.hitax.utils.AnimationUtils
 import com.stupidtree.hitax.utils.ImageUtils.dp2px
+import com.stupidtree.hitax.utils.TermNameFormatter
 import com.stupidtree.hitax.utils.TextTools
 import java.util.*
 
@@ -72,7 +73,7 @@ class ImportTimetableActivity :
         viewModel.changeIsUndergraduate(isUndergrad)
         binding.termPick.setOnClickListener {
             val terms = viewModel.startGetAllTerms()
-            val names = terms.map { getDisplayTermName(it, terms) }
+            val names = terms.map { getDisplayTermName(it) }
             if (names.isEmpty()) {
                 return@setOnClickListener
             }
@@ -115,7 +116,7 @@ class ImportTimetableActivity :
     private fun bindLiveData() {
         viewModel.selectedTermLiveData.observe(this) {
             it?.let {
-                val label = getDisplayTermName(it, viewModel.startGetAllTerms())
+                val label = getDisplayTermName(it)
                 binding.termText.text = label
                 binding.cardName.setTitle(label)
                 maybeAutoImport()
@@ -239,15 +240,8 @@ class ImportTimetableActivity :
         })
     }
 
-    private fun getDisplayTermName(term: TermItem, allTerms: List<TermItem>): String {
-        val termName = term.termName.trim()
-        if (termName.isNotBlank()) {
-            val duplicates = allTerms.count { it.termName.trim() == termName }
-            if (duplicates <= 1) {
-                return termName
-            }
-        }
-        return term.name
+    private fun getDisplayTermName(term: TermItem): String {
+        return TermNameFormatter.shortTermName(term.termName, term.name)
     }
 
 
