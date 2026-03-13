@@ -31,6 +31,7 @@ import java.sql.Timestamp
 import java.util.*
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 
 class EASRepository internal constructor(application: Application) {
     private val appContext = application.applicationContext
@@ -199,6 +200,15 @@ class EASRepository internal constructor(application: Application) {
         startDate.set(Calendar.DAY_OF_WEEK, Calendar.MONDAY)
         val easToken = easPreferenceSource.getEasToken()
         if (easToken.isLogin()) {
+            val finished = AtomicBoolean(false)
+            val timeoutHandler = Handler(Looper.getMainLooper())
+            val timeoutRunnable = Runnable {
+                if (finished.compareAndSet(false, true)) {
+                    importTimetableLiveData.value =
+                        DataState(DataState.STATE.FETCH_FAILED, "导入超时，请重试")
+                }
+            }
+            timeoutHandler.postDelayed(timeoutRunnable, 90_000L)
             timetableWebLiveData?.let { importTimetableLiveData.removeSource(it) }
             timetableWebLiveData =
                 easService.getTimetableOfTerm(term, easToken)
@@ -206,8 +216,11 @@ class EASRepository internal constructor(application: Application) {
                 if (it.state == DataState.STATE.SUCCESS) {
                     val courseItems = it.data
                     if (courseItems.isNullOrEmpty()) {
-                        importTimetableLiveData.value =
-                            DataState(DataState.STATE.FETCH_FAILED, "empty timetable")
+                        if (finished.compareAndSet(false, true)) {
+                            timeoutHandler.removeCallbacks(timeoutRunnable)
+                            importTimetableLiveData.value =
+                                DataState(DataState.STATE.FETCH_FAILED, "empty timetable")
+                        }
                         return@addSource
                     }
                     Thread {
@@ -324,9 +337,12 @@ class EASRepository internal constructor(application: Application) {
                                 }
                             }
                             if (events.isEmpty()) {
-                                importTimetableLiveData.postValue(
-                                    DataState(DataState.STATE.FETCH_FAILED, "empty events")
-                                )
+                                if (finished.compareAndSet(false, true)) {
+                                    timeoutHandler.removeCallbacks(timeoutRunnable)
+                                    importTimetableLiveData.postValue(
+                                        DataState(DataState.STATE.FETCH_FAILED, "empty events")
+                                    )
+                                }
                                 return@Thread
                             }
                             eventItemDao.saveEvents(events)
@@ -340,16 +356,26 @@ class EASRepository internal constructor(application: Application) {
                             timetable.scheduleStructure = safeSchedule
                             timetableDao.saveTimetableSync(timetable)
 
-                            importTimetableLiveData.postValue(DataState(true, DataState.STATE.SUCCESS))
+                            if (finished.compareAndSet(false, true)) {
+                                timeoutHandler.removeCallbacks(timeoutRunnable)
+                                importTimetableLiveData.postValue(DataState(true, DataState.STATE.SUCCESS))
+                            }
                         } catch (e: Exception) {
                             e.printStackTrace()
-                            importTimetableLiveData.postValue(
-                                DataState(DataState.STATE.FETCH_FAILED, e.message)
-                            )
+                            if (finished.compareAndSet(false, true)) {
+                                timeoutHandler.removeCallbacks(timeoutRunnable)
+                                importTimetableLiveData.postValue(
+                                    DataState(DataState.STATE.FETCH_FAILED, e.message)
+                                )
+                            }
                         }
                     }.start()
                 } else {
-                    importTimetableLiveData.value = DataState(DataState.STATE.FETCH_FAILED)
+                    if (finished.compareAndSet(false, true)) {
+                        timeoutHandler.removeCallbacks(timeoutRunnable)
+                        importTimetableLiveData.value =
+                            DataState(DataState.STATE.FETCH_FAILED, it.message)
+                    }
                 }
             }
         } else {

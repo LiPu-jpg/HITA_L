@@ -356,7 +356,8 @@ class EASource internal constructor() : EASService {
                 val zcBody = """{"xn":"${term.yearCode}","xq":"${term.termCode}"}"""
                 val zcResp = jsonPost(token, "/app/commapp/queryzclistbyxnxq", zcBody)
                 val zcJo = JsonUtils.getJsonObject(zcResp.body())
-                val weekCount = zcJo?.optJSONArray("content")?.length() ?: 18
+                val rawWeekCount = zcJo?.optJSONArray("content")?.length() ?: 18
+                val weekCount = rawWeekCount.coerceIn(1, 30)
 
                 for (zc in 1..weekCount) {
                     val kbBody = """{"xn":"${term.yearCode}","xq":"${term.termCode}","zc":"$zc","type":"json"}"""
