@@ -22,13 +22,15 @@ import com.stupidtree.style.widgets.PopUpText
 import java.util.*
 import kotlin.Comparator
 import android.content.Intent
-import android.net.Uri
 import android.view.HapticFeedbackConstants
 import com.google.android.material.appbar.AppBarLayout
 import com.stupidtree.hitax.ui.event.add.PopupAddEvent
 import com.stupidtree.style.widgets.PopUpColorPicker
+import com.stupidtree.hitax.utils.FileProviderUtils
 import com.stupidtree.hitax.utils.ImageUtils
+import com.stupidtree.hitax.utils.ShareUtils
 import com.stupidtree.style.widgets.PopUpEditText
+import java.io.File
 
 
 class TimetableDetailActivity :
@@ -277,10 +279,11 @@ class TimetableDetailActivity :
                     binding.share.revertAnimation()
                 }, 600)
                 Toast.makeText(getThis(), "已导出为ICS文件", Toast.LENGTH_SHORT).show()
-                val imageIntent = Intent(Intent.ACTION_SEND)
-                imageIntent.type = "application/octet-stream"
-                imageIntent.putExtra(Intent.EXTRA_STREAM, Uri.parse(it.data))
-                startActivity(Intent.createChooser(imageIntent, "分享"))
+                val path = it.data ?: return@observe
+                val file = File(path)
+                val uri = FileProviderUtils.getUriForFile(getThis(), file)
+                val shareIntent = ShareUtils.buildShareIntentForUri(uri, "text/calendar")
+                startActivity(Intent.createChooser(shareIntent, "分享"))
             }else{
                 if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
                     binding.share.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
