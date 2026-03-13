@@ -272,7 +272,7 @@ class SubjectActivity : BaseActivity<SubjectViewModel, ActivitySubjectBinding>()
         return "0.0"
     }
 
-    @Suppress("DEPRECATION")
+    @Suppress("DEPRECATION", "OVERRIDE_DEPRECATION")
     override fun onBackPressed() {
         when (editModeHelper.isEditMode) {
             true -> editModeHelper.closeEditMode()

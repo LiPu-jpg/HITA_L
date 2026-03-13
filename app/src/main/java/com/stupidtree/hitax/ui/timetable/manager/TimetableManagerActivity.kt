@@ -231,7 +231,7 @@ override fun onDelete(toDelete: Collection<Timetable>?) {
     editModeHelper?.closeEditMode()
 }
 
-    @Suppress("DEPRECATION")
+    @Suppress("DEPRECATION", "OVERRIDE_DEPRECATION")
     override fun onBackPressed() {
         if (editModeHelper?.isEditMode == true) {
             editModeHelper?.closeEditMode()

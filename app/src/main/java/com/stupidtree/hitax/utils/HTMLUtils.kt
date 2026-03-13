@@ -44,9 +44,11 @@ object HTMLUtils {
     }
 
     fun getTextOfTagHavingAttr(d: Element, tag: String?, attr: String?): String {
+        val tagName = tag ?: return ""
+        val attrName = attr ?: return ""
         return try {
-            for (e in d.getElementsByTag(tag)) {
-                if (e.hasAttr(attr)) return e.text()
+            for (e in d.getElementsByTag(tagName)) {
+                if (e.hasAttr(attrName)) return e.text()
             }
             ""
         } catch (e: Exception) {

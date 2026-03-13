@@ -311,7 +311,7 @@ class MainActivity : BaseActivity<MainViewModel, ActivityMainBinding>(),
     }
 
 
-    @Suppress("DEPRECATION")
+    @Suppress("DEPRECATION", "OVERRIDE_DEPRECATION")
     override fun onBackPressed() {
         //super.onBackPressed();
         if (binding.drawer.isDrawerOpen(GravityCompat.END)) {

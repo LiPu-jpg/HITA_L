@@ -360,7 +360,7 @@ open class PullExtendLayout @JvmOverloads constructor(
      * getScrollY < 0 ，说明上边已滑出屏幕
      */
     private val scrollYValue: Int
-        private get() = scrollY
+        get() = scrollY
 
     /**
      * 平滑滚动
