@@ -91,6 +91,7 @@ class SearchActivity : BaseActivity<SearchViewModel, ActivitySearchBinding>(),
     }
 
 
+    @Suppress("DEPRECATION")
     private fun popUpKeyboard() {
         binding.searchview.requestFocus()
         val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager?

@@ -155,7 +155,7 @@ class HApplication : Application() {
             // trustAllCerts信任所有的证书
             sc.init(null, trustAllCerts, SecureRandom())
             HttpsURLConnection.setDefaultSSLSocketFactory(sc.socketFactory)
-            HttpsURLConnection.setDefaultHostnameVerifier { hostname, session -> true }
+            HttpsURLConnection.setDefaultHostnameVerifier { _, _ -> true }
         } catch (ignored: Exception) {
         }
     }

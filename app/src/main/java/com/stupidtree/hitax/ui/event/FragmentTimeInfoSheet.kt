@@ -21,7 +21,9 @@ class FragmentTimeInfoSheet : TransparentBottomSheetDialog<DialogBottomEventsBin
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         if (arguments != null) {
-            events.addAll(requireArguments().getSerializable("events") as List<EventItem>)
+            @Suppress("DEPRECATION", "UNCHECKED_CAST")
+            val eventsArg = requireArguments().getSerializable("events") as List<EventItem>
+            events.addAll(eventsArg)
             mode = requireArguments().getInt("mode")
         }
     }

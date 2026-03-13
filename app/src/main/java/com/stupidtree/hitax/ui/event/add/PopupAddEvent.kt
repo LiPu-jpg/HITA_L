@@ -160,7 +160,7 @@ class PopupAddEvent(private val addSubjectMode:Boolean = false) :
                 binding?.pickTime?.setCardBackgroundColor(getColorPrimary())
                 binding?.pickTimeIcon?.setColorFilter(getColorPrimary())
                 binding?.timeShow?.setTextColor(getColorPrimary())
-                viewModel.timetableLiveData.value?.data?.let { tt ->
+                if (viewModel.timetableLiveData.value?.data != null) {
                     it.data?.let { ct ->
                         val t1 =
                             resources.getStringArray(R.array.dow1)[ct.dow - 1].toString() + " " + ct.period.from.toString() + "-" + ct.period.to.toString()

@@ -66,6 +66,7 @@ abstract class ExtendLayout @JvmOverloads constructor(
      * @param curState 当前状态
      * @param oldState 老的状态
      */
+    @Suppress("UNUSED_PARAMETER")
     private fun onStateChanged(curState: IExtendLayout.State?, oldState: IExtendLayout.State?) {
         when (curState) {
             IExtendLayout.State.RESET -> onReset()

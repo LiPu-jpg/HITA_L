@@ -123,7 +123,7 @@ class PopUpPickCourseTime(val timetable: Timetable) :
                 binding.toTime.text = tt.scheduleStructure[newIndex].to.toString()
             }
         }
-        binding.pickdow.setOnWheelChangedListener { view, oldIndex, newIndex ->
+        binding.pickdow.setOnWheelChangedListener { _, _, _ ->
             selectedTimesLiveData.value = getSelectedDates()
         }
         bindLiveData()

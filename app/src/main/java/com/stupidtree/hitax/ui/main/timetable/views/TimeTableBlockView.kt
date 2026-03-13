@@ -125,6 +125,7 @@ class TimeTableBlockView constructor(
     }
 
 
+    @Suppress("UNCHECKED_CAST")
     private fun initDuplicateCard(context: Context) {
         val list: List<EventItem> = block as List<EventItem>
         inflate(context, R.layout.fragment_timetable_duplicate_card, this)
@@ -195,6 +196,7 @@ class TimeTableBlockView constructor(
     }
 
 
+    @Suppress("UNCHECKED_CAST")
     fun getDow(): Int {
         if (block is EventItem) {
             return (block as EventItem).getDow()
@@ -204,6 +206,7 @@ class TimeTableBlockView constructor(
         return -1
     }
 
+    @Suppress("UNCHECKED_CAST")
     fun getDuration(): Int {
         if (block is EventItem) {
             return (block as EventItem).getDurationInMinutes()

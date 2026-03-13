@@ -123,7 +123,7 @@ class AddEventViewModel(application: Application) : AndroidViewModel(application
         val data = mutableListOf<EventItem>()
 
         timetableLiveData.value?.data?.let { timetable ->
-            var subject: TermSubject? = null
+            var subject: TermSubject?
             if (addSubject) {
                 subject = TermSubject()
                 subject.name = nameLiveData.value ?: ""

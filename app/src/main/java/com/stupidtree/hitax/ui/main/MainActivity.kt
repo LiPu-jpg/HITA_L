@@ -119,6 +119,7 @@ class MainActivity : BaseActivity<MainViewModel, ActivityMainBinding>(),
     var checkedUpdate = false
     var lastCheckTs: Long = 0
 
+    @Suppress("DEPRECATION")
     override fun onStart() {
         super.onStart()
         viewModel.startRefreshUser()
@@ -310,6 +311,7 @@ class MainActivity : BaseActivity<MainViewModel, ActivityMainBinding>(),
     }
 
 
+    @Suppress("DEPRECATION")
     override fun onBackPressed() {
         //super.onBackPressed();
         if (binding.drawer.isDrawerOpen(GravityCompat.END)) {

@@ -16,6 +16,7 @@ import com.stupidtree.hitax.databinding.ActivityTeacherOfficialBinding
 import com.stupidtree.style.base.BaseActivity
 
 
+@Suppress("DEPRECATION")
 open class ActivityTeacherOfficial :
     BaseActivity<TeacherViewModel, ActivityTeacherOfficialBinding>() {
     var tabTitles: MutableList<String> = mutableListOf()

@@ -19,12 +19,12 @@ class FragmentTimetablePanel : TransparentModeledBottomSheetDialog<TimetablePane
         }
         binding?.from?.setOnClickListener {
             viewModel.startDateLiveData.value?.let {
-                val minute = it % 100
+                val minuteValue = it % 100
                 val hour = it / 100
                 TimePickerDialog(requireContext(), { view, hourOfDay, minute ->
                     view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
                     viewModel.changeStartDate(hourOfDay, minute)
-                }, hour, minute, true)
+                }, hour, minuteValue, true)
                         .show()
             }
         }

@@ -6,7 +6,7 @@ import com.stupidtree.hitax.data.source.web.TeacherWebSource
 import com.stupidtree.component.data.DataState
 import com.stupidtree.hitax.ui.search.teacher.TeacherSearched
 
-class TeacherInfoRepository internal constructor(application: Application) {
+class TeacherInfoRepository @Suppress("UNUSED_PARAMETER") internal constructor(application: Application) {
 
 
     fun getTeacherProfile(

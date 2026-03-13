@@ -82,7 +82,7 @@ object TeacherWebSource : TeacherService {
                         val id = e.attr("data-class")
                         val part = teachersPage.getElementById(id)
                         if (part != null && part.getElementsByTag("table").size > 0) {
-                            infoToAdd[e.text()] = part.getElementsByTag("table").first().toString()
+                            infoToAdd[e.text()] = part.getElementsByTag("table").first()!!.toString()
                         }
                     }
                 }
