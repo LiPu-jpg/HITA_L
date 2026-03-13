@@ -1,6 +1,7 @@
 package com.stupidtree.hitax.data.source.web.eas
 
 import android.annotation.SuppressLint
+import android.util.Base64
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import com.stupidtree.component.data.DataState
@@ -22,9 +23,15 @@ import com.stupidtree.hitax.utils.CourseCodeUtils
 import org.json.JSONObject
 import org.jsoup.Connection
 import org.jsoup.Jsoup
+import java.math.BigInteger
+import java.security.KeyFactory
+import java.security.PublicKey
+import java.security.spec.RSAPublicKeySpec
+import java.security.spec.X509EncodedKeySpec
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
+import javax.crypto.Cipher
 
 /**
  * 教务系统 API 数据源 —— 新版接口 (mjw.hitsz.edu.cn/incoSpringBoot)
@@ -107,6 +114,95 @@ class EASource internal constructor() : EASService {
         return req.execute()
     }
 
+    private fun buildCookieMap(vararg responses: Connection.Response): HashMap<String, String> {
+        val cookies = HashMap<String, String>()
+        responses.forEach { resp ->
+            resp.cookies().forEach { (k, v) -> cookies[k] = v }
+        }
+        return cookies
+    }
+
+    private fun buildTokenFromPayload(
+        payload: JSONObject?,
+        username: String,
+        password: String,
+        cookies: Map<String, String>
+    ): EASToken? {
+        val accessToken = payload?.optString("access_token")
+        if (accessToken.isNullOrEmpty()) return null
+        val token = EASToken()
+        token.accessToken = accessToken
+        token.refreshToken = payload.optString("refresh_token")
+        token.username = username
+        token.password = password
+        token.cookies = HashMap(cookies)
+        val dataObj = payload.optJSONObject("data")
+        val infoObj = payload.optJSONObject("info")
+        token.stutype =
+            if (dataObj?.optString("pylx") == "1") EASToken.TYPE.UNDERGRAD else EASToken.TYPE.GRAD
+        token.phone = dataObj?.optString("lxdh")
+        token.name = dataObj?.optString("yhxm") ?: infoObj?.optString("xm")
+        token.school = dataObj?.optString("bmmc")
+        token.stuId = infoObj?.optString("yhdm")
+        return token
+    }
+
+    private fun parseRsaPublicKeysFromRaskey(body: String): List<PublicKey> {
+        val keys = mutableListOf<PublicKey>()
+        val jo = JsonUtils.getJsonObject(body) ?: return keys
+        val keyBase64 = jo.optString("CLIENT_RSA_EXPONENT")
+        if (keyBase64.isNotBlank()) {
+            try {
+                val keyBytes = Base64.decode(keyBase64, Base64.DEFAULT)
+                val keySpec = X509EncodedKeySpec(keyBytes)
+                keys.add(KeyFactory.getInstance("RSA").generatePublic(keySpec))
+            } catch (_: Exception) {
+                // fall back to modulus/exponent parsing below
+            }
+        }
+        val modulusRaw = jo.optString("CLIENT_RSA_MODULUS")
+        val exponentRaw = jo.optString("CLIENT_RSA_EXPONENT")
+        if (modulusRaw.isBlank() || exponentRaw.isBlank()) return keys
+        val candidates = listOf(
+            parseBigInteger(modulusRaw, preferHex = true) to parseBigInteger(exponentRaw, preferHex = true),
+            parseBigInteger(modulusRaw, preferHex = false) to parseBigInteger(exponentRaw, preferHex = false)
+        )
+        for ((modulus, exponent) in candidates) {
+            if (modulus == null || exponent == null) continue
+            runCatching {
+                val spec = RSAPublicKeySpec(modulus, exponent)
+                keys.add(KeyFactory.getInstance("RSA").generatePublic(spec))
+            }.getOrNull()
+        }
+        return keys
+    }
+
+    private fun parseBigInteger(raw: String, preferHex: Boolean): BigInteger? {
+        val trimmed = raw.trim()
+        if (trimmed.isEmpty()) return null
+        if (trimmed.startsWith("0x", ignoreCase = true)) {
+            return runCatching { BigInteger(trimmed.substring(2), 16) }.getOrNull()
+        }
+        val isNumeric = trimmed.all { it.isDigit() }
+        if (preferHex) {
+            if (isNumeric && trimmed.length <= 5) {
+                // Common exponent "10001" usually means 0x10001 (65537)
+                return runCatching { BigInteger(trimmed, 16) }.getOrNull()
+            }
+            return runCatching { BigInteger(trimmed, 16) }.getOrNull()
+        }
+        return runCatching { BigInteger(trimmed, if (isNumeric) 10 else 16) }.getOrNull()
+    }
+
+    private fun encryptPasswordWithRsa(password: String, publicKey: PublicKey): String? {
+        return runCatching {
+            val cipher = Cipher.getInstance("RSA/ECB/PKCS1Padding")
+            cipher.init(Cipher.ENCRYPT_MODE, publicKey)
+            val encrypted = cipher.doFinal(password.toByteArray(Charsets.UTF_8))
+            Base64.encodeToString(encrypted, Base64.NO_WRAP)
+        }.getOrNull()
+    }
+
     // ================================================================ 登录
     override fun login(
         username: String,
@@ -131,39 +227,54 @@ class EASource internal constructor() : EASService {
                 val rsaResp = formPost(session, "/component/queryApplicationSetting/rsa", basicAuth, rolecode = "01")
                 // 步骤2：获取 RSA 参数（维持 session 一致）
                 val raskeyResp = formPost(session, "/c_raskey", basicAuth, rolecode = "06")
-                // 步骤3：LDAP 登录
-                val ldapResp = formPost(
-                    session, "/authentication/ldap", basicAuth, rolecode = "06",
-                    data = mapOf("username" to username, "password" to password)
-                )
+                val rsaPublicKeys = parseRsaPublicKeysFromRaskey(raskeyResp.body())
+                val rolecodes = listOf("06", "01")
 
-                val payload = JsonUtils.getJsonObject(ldapResp.body())
-                val accessToken = payload?.optString("access_token")
-                if (accessToken.isNullOrEmpty()) {
-                    res.postValue(DataState(DataState.STATE.FETCH_FAILED, payload?.optString("msg") ?: "登录失败"))
+                // 步骤3：LDAP 登录（明文优先，失败再尝试加密）
+                var payload: JSONObject? = null
+                var token: EASToken? = null
+                for (role in rolecodes) {
+                    val ldapResp = formPost(
+                        session, "/authentication/ldap", basicAuth, rolecode = role,
+                        data = mapOf("username" to username, "password" to password)
+                    )
+                    payload = JsonUtils.getJsonObject(ldapResp.body())
+                    token = buildTokenFromPayload(
+                        payload,
+                        username,
+                        password,
+                        buildCookieMap(rsaResp, raskeyResp, ldapResp)
+                    )
+                    if (token != null) break
+                }
+                if (token == null && rsaPublicKeys.isNotEmpty()) {
+                    loop@ for (role in rolecodes) {
+                        for (publicKey in rsaPublicKeys) {
+                            val encrypted = encryptPasswordWithRsa(password, publicKey) ?: continue
+                            val ldapResp = formPost(
+                                session, "/authentication/ldap", basicAuth, rolecode = role,
+                                data = mapOf("username" to username, "password" to encrypted)
+                            )
+                            payload = JsonUtils.getJsonObject(ldapResp.body())
+                            token = buildTokenFromPayload(
+                                payload,
+                                username,
+                                password,
+                                buildCookieMap(rsaResp, raskeyResp, ldapResp)
+                            )
+                            if (token != null) break@loop
+                        }
+                    }
+                }
+                if (token == null) {
+                    res.postValue(
+                        DataState(
+                            DataState.STATE.FETCH_FAILED,
+                            payload?.optString("msg") ?: "登录失败"
+                        )
+                    )
                     return@Thread
                 }
-
-                val token = EASToken()
-                token.accessToken = accessToken
-                token.refreshToken = payload.optString("refresh_token")
-                token.username = username
-                token.password = password
-                // 保存登录链路中的 cookies（route, JSESSIONID 等）
-                val cookieMap = HashMap<String, String>()
-                rsaResp.cookies().forEach { (k, v) -> cookieMap[k] = v }
-                raskeyResp.cookies().forEach { (k, v) -> cookieMap[k] = v }
-                ldapResp.cookies().forEach { (k, v) -> cookieMap[k] = v }
-                token.cookies = cookieMap
-
-                // 解析用户信息
-                val dataObj = payload.optJSONObject("data")
-                val infoObj = payload.optJSONObject("info")
-                token.stutype = if (dataObj?.optString("pylx") == "1") EASToken.TYPE.UNDERGRAD else EASToken.TYPE.GRAD
-                token.phone = dataObj?.optString("lxdh")
-                token.name = dataObj?.optString("yhxm") ?: infoObj?.optString("xm")
-                token.school = dataObj?.optString("bmmc")
-                token.stuId = infoObj?.optString("yhdm")
 
                 res.postValue(DataState(token, DataState.STATE.SUCCESS))
             } catch (e: Exception) {
