@@ -18,6 +18,7 @@ import com.stupidtree.hitax.ui.eas.classroom.EmptyClassroomListAdapter
 import com.stupidtree.hitax.ui.eas.classroom.detail.EmptyClassroomDetailFragment
 import com.stupidtree.style.base.BaseListAdapter
 import com.stupidtree.style.widgets.PopUpCheckableList
+import com.stupidtree.hitax.utils.TermNameFormatter
 
 class ScoreInquiryActivity :
     EASActivity<ScoreInquiryViewModel, ActivityEasScoreFirstBinding>() {
@@ -49,7 +50,7 @@ class ScoreInquiryActivity :
         viewModel.selectedTermLiveData.observe(this) {
             it?.let { term ->
                 binding.refresh.isRefreshing = true
-                binding.schoolSemesterText.text = getDisplayTermName(term, viewModel.termsLiveData.value?.data)
+                binding.schoolSemesterText.text = getDisplayTermName(term)
             }
         }
         viewModel.scoresLiveData.observe(this) {
@@ -112,7 +113,7 @@ class ScoreInquiryActivity :
         binding.scoreStructure.layoutManager = LinearLayoutManager(getThis())
         binding.schoolSemesterLayout.setOnClickListener {
             viewModel.termsLiveData.value?.data?.let { terms ->
-                val names = terms.map { getDisplayTermName(it, terms) }
+                val names = terms.map { getDisplayTermName(it) }
                 if (names.isEmpty()) return@setOnClickListener
                 PopUpCheckableList<TermItem>()
                     .setListData(names, terms)
@@ -159,17 +160,8 @@ class ScoreInquiryActivity :
         viewModel.selectedTestTypeLiveData.value = EASService.TestType.ALL
     }
 
-    private fun getDisplayTermName(term: TermItem, allTerms: List<TermItem>?): String {
-        val termName = term.termName.trim()
-        if (termName.isNotBlank() && allTerms != null) {
-            val duplicates = allTerms.count { it.termName.trim() == termName }
-            if (duplicates <= 1) {
-                return termName
-            }
-        } else if (termName.isNotBlank()) {
-            return termName
-        }
-        return term.name
+    private fun getDisplayTermName(term: TermItem): String {
+        return TermNameFormatter.shortTermName(term.termName, term.name)
     }
 
     override fun getViewModelClass(): Class<ScoreInquiryViewModel> {

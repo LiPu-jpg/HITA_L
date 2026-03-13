@@ -32,6 +32,7 @@ abstract class BasicFragmentSearchResult<T, V : BaseSearchResultViewModel<T>> :
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        @Suppress("DEPRECATION")
         retainInstance = false
     }
 

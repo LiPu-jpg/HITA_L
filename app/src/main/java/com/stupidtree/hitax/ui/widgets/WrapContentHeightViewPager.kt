@@ -12,8 +12,8 @@ open class WrapContentHeightViewPager : ViewPager {
     }
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
-        var heightMeasureSpec = heightMeasureSpec
-        super.onMeasure(widthMeasureSpec, heightMeasureSpec)
+        var measureSpec = heightMeasureSpec
+        super.onMeasure(widthMeasureSpec, measureSpec)
         var height = 0
         for (i in 0 until childCount) {
             val child = getChildAt(i)
@@ -21,7 +21,7 @@ open class WrapContentHeightViewPager : ViewPager {
             val h = child.measuredHeight
             if (h > height) height = h
         }
-        heightMeasureSpec = MeasureSpec.makeMeasureSpec(height, MeasureSpec.EXACTLY)
-        super.onMeasure(widthMeasureSpec, heightMeasureSpec)
+        measureSpec = MeasureSpec.makeMeasureSpec(height, MeasureSpec.EXACTLY)
+        super.onMeasure(widthMeasureSpec, measureSpec)
     }
 }

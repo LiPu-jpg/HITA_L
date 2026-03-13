@@ -42,6 +42,7 @@ fun AppTheme(
 
 @Composable
 fun AppBar(title: Int) {
+    @Suppress("DEPRECATION")
     TopAppBar(
         navigationIcon = {
             Icon(

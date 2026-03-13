@@ -9,6 +9,7 @@ import com.stupidtree.hita.theta.utils.ActivityTools
 import com.stupidtree.hitax.databinding.ActivityNewsDetailBinding
 import com.stupidtree.style.base.BaseActivity
 
+@Suppress("DEPRECATION")
 class NewsDetailActivity : BaseActivity<NewsViewModel, ActivityNewsDetailBinding>() {
     override fun initViewBinding(): ActivityNewsDetailBinding {
         return ActivityNewsDetailBinding.inflate(layoutInflater)

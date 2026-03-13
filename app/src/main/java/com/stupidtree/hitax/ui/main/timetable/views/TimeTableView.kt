@@ -242,7 +242,7 @@ class TimeTableView : ViewGroup {
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         super.onMeasure(widthMeasureSpec, heightMeasureSpec)
         val totalMinutes: Int =
-            (endTime.hour - styleSheet.startTime / 100) * 60 + endTime.minute - styleSheet!!.startTime % 100
+            (endTime.hour - styleSheet.startTime / 100) * 60 + endTime.minute - styleSheet.startTime % 100
         setMeasuredDimension(
             MeasureSpec.getSize(widthMeasureSpec),
             MeasureSpec.makeMeasureSpec(

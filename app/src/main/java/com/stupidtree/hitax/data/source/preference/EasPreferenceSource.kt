@@ -69,7 +69,9 @@ class EasPreferenceSource(context: Context) {
             Gson().fromJson(preference.getString("cookies", "{}"), HashMap::class.java)
         }.getOrNull() ?: HashMap<Any, Any>()
         for (e in map.entries) {
+            @Suppress("UNNECESSARY_SAFE_CALL")
             val key = e.key?.toString().orEmpty()
+            @Suppress("UNNECESSARY_SAFE_CALL")
             val value = e.value?.toString().orEmpty()
             if (key.isNotBlank()) {
                 result.cookies[key] = value

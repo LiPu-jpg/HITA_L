@@ -150,6 +150,7 @@ open class PullExtendLayout @JvmOverloads constructor(
      * @param width  当前容器的宽度
      * @param height 当前容器的宽度
      */
+    @Suppress("UNUSED_PARAMETER")
     protected fun refreshRefreshableViewSize(width: Int, height: Int) {
         val lp = mRefreshableView!!.layoutParams as LayoutParams
         if (lp.height != height) {
@@ -163,6 +164,7 @@ open class PullExtendLayout @JvmOverloads constructor(
      *
      * @param context context
      */
+    @Suppress("UNUSED_PARAMETER")
     private fun init(context: Context) {
         //  mTouchSlop = (int) (ViewConfiguration.get(context).getScaledTouchSlop() * 1.5);
         val layoutParams = mRefreshableView!!.layoutParams
@@ -358,7 +360,7 @@ open class PullExtendLayout @JvmOverloads constructor(
      * getScrollY < 0 ，说明上边已滑出屏幕
      */
     private val scrollYValue: Int
-        private get() = scrollY
+        get() = scrollY
 
     /**
      * 平滑滚动
@@ -379,22 +381,22 @@ open class PullExtendLayout @JvmOverloads constructor(
      * @param duration       滚动时候
      */
     private fun smoothScrollTo(newScrollValue: Int, duration: Long, decFactor: Float) {
-        var newScrollValue = newScrollValue
+        var targetScrollValue = newScrollValue
         if (null != mSmoothScrollRunnable) {
             mSmoothScrollRunnable!!.stop()
         }
         val oldScrollValue = scrollYValue
-        val post = oldScrollValue != newScrollValue
+        val post = oldScrollValue != targetScrollValue
         if (post) {
             mSmoothScrollRunnable =
-                SmoothScrollRunnable(oldScrollValue, newScrollValue, duration, decFactor)
+                SmoothScrollRunnable(oldScrollValue, targetScrollValue, duration, decFactor)
         } else {
             // 修正
             if (oldScrollValue < 0) {
-                newScrollValue = 0
+                targetScrollValue = 0
             }
             mSmoothScrollRunnable =
-                SmoothScrollRunnable(oldScrollValue, newScrollValue, duration, decFactor)
+                SmoothScrollRunnable(oldScrollValue, targetScrollValue, duration, decFactor)
         }
 
 //        if (post) {

@@ -18,6 +18,7 @@ import com.stupidtree.hitax.utils.ImageUtils
 import com.stupidtree.style.base.BaseActivity
 import com.stupidtree.style.widgets.PopUpText
 
+@Suppress("DEPRECATION")
 class ActivityAbout: BaseActivity<AboutViewModel,ActivityAboutBinding>() {
 
     override fun onCreate(savedInstanceState: Bundle?) {

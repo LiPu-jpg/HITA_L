@@ -7,7 +7,7 @@ import com.stupidtree.hitax.data.source.web.StaticWebSource
 import com.stupidtree.hitax.data.source.web.additional.AdditionalSource
 import com.stupidtree.hitax.data.source.web.service.AdditionalService
 
-class AdditionalRepository internal constructor(application: Application) {
+class AdditionalRepository @Suppress("UNUSED_PARAMETER") internal constructor(application: Application) {
     private val additionalWebSource:AdditionalService = AdditionalSource()
 
     fun getLectures(pageSize:Int,pageOffset:Int): LiveData<DataState<List<Map<String,String>>>> {

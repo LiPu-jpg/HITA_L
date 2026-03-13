@@ -14,6 +14,7 @@ import com.stupidtree.hitax.ui.eas.EASActivity
 import com.stupidtree.hitax.databinding.ActivityEasExamBinding
 import com.stupidtree.style.base.BaseListAdapter
 import com.stupidtree.style.widgets.PopUpCheckableList
+import com.stupidtree.hitax.utils.TermNameFormatter
 
 class ExamActivity :
     EASActivity<ExamViewModel, ActivityEasExamBinding>() {
@@ -43,7 +44,7 @@ class ExamActivity :
         viewModel.selectedTermLiveData.observe(this) {
             it?.let { term ->
                 binding.refresh.isRefreshing = true
-                binding.examTermText.text = getDisplayTermName(term, viewModel.termsLiveData.value?.data)
+                binding.examTermText.text = getDisplayTermName(term)
             }
         }
         viewModel.selectedExamTypeLiveData.observe(this) {
@@ -93,7 +94,7 @@ class ExamActivity :
         binding.examStructure.layoutManager = LinearLayoutManager(getThis())
         binding.examTermLayout.setOnClickListener {
             viewModel.termsLiveData.value?.data?.let { terms ->
-                val names = terms.map { getDisplayTermName(it, terms) }
+                val names = terms.map { getDisplayTermName(it) }
                 if (names.isEmpty()) return@setOnClickListener
                 PopUpCheckableList<TermItem>()
                     .setListData(names, terms)
@@ -157,17 +158,8 @@ class ExamActivity :
         viewModel.selectedExamTypeLiveData.value = ExamViewModel.ExamType.ALL
     }
 
-    private fun getDisplayTermName(term: TermItem, allTerms: List<TermItem>?): String {
-        val termName = term.termName.trim()
-        if (termName.isNotBlank() && allTerms != null) {
-            val duplicates = allTerms.count { it.termName.trim() == termName }
-            if (duplicates <= 1) {
-                return termName
-            }
-        } else if (termName.isNotBlank()) {
-            return termName
-        }
-        return term.name
+    private fun getDisplayTermName(term: TermItem): String {
+        return TermNameFormatter.shortTermName(term.termName, term.name)
     }
 
     private fun showAddMemoDialog() {

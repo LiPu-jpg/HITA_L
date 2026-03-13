@@ -16,12 +16,14 @@ import com.stupidtree.hitax.ui.widgets.today.normal.TodayWidget
 import com.stupidtree.hitax.ui.widgets.today.slim.TodayWidgetSlim
 import com.stupidtree.hitax.utils.TimeTools
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 import java.util.*
 
 object TodayUtils {
 
+    @OptIn(DelicateCoroutinesApi::class)
     fun BroadcastReceiver.goAsync(
         coroutineScope: CoroutineScope = GlobalScope,
         block: suspend () -> Unit
@@ -37,6 +39,7 @@ object TodayUtils {
         }
     }
 
+    @Suppress("DEPRECATION")
     fun setUpOneWidget(
         context: Context,
         events: List<EventItem>,

@@ -1,5 +1,6 @@
 package com.stupidtree.hitax.ui.timetable.manager
 
+import android.content.Intent
 import android.os.Bundle
 import android.view.HapticFeedbackConstants
 import android.view.View
@@ -12,13 +13,14 @@ import com.stupidtree.hitax.R
 import com.stupidtree.hitax.data.model.timetable.Timetable
 import com.stupidtree.hitax.databinding.ActivityTimetableManagerBinding
 import com.stupidtree.hitax.ui.eas.imp.ImportTimetableActivity
-import com.stupidtree.style.base.BaseActivity
-import com.stupidtree.style.base.BaseListAdapter
 import com.stupidtree.hitax.utils.ActivityUtils
 import com.stupidtree.hitax.utils.EditModeHelper
+import com.stupidtree.hitax.utils.FileProviderUtils
 import com.stupidtree.hitax.utils.ImageUtils
-import android.content.Intent
-import android.net.Uri
+import com.stupidtree.hitax.utils.ShareUtils
+import com.stupidtree.style.base.BaseActivity
+import com.stupidtree.style.base.BaseListAdapter
+import java.io.File
 
 class TimetableManagerActivity :
     BaseActivity<TimetableManagerViewModel, ActivityTimetableManagerBinding>(),
@@ -151,10 +153,11 @@ class TimetableManagerActivity :
                     binding.buttonSync.revertAnimation()
                 }, 600)
                 Toast.makeText(getThis(), "已导出为ICS文件", Toast.LENGTH_SHORT).show()
-                val imageIntent = Intent(Intent.ACTION_SEND)
-                imageIntent.type = "application/octet-stream"
-                imageIntent.putExtra(Intent.EXTRA_STREAM, Uri.parse(it.data))
-                startActivity(Intent.createChooser(imageIntent, "分享"))
+                val path = it.data ?: return@observe
+                val file = File(path)
+                val uri = FileProviderUtils.getUriForFile(getThis(), file)
+                val shareIntent = ShareUtils.buildShareIntentForUri(uri, "text/calendar")
+                startActivity(Intent.createChooser(shareIntent, "分享"))
             } else if (it.state == DataState.STATE.FETCH_FAILED) {
                 if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
                     binding.buttonSync.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
@@ -228,11 +231,12 @@ override fun onDelete(toDelete: Collection<Timetable>?) {
     editModeHelper?.closeEditMode()
 }
 
-override fun onBackPressed() {
-    if (editModeHelper?.isEditMode == true) {
-        editModeHelper?.closeEditMode()
-        return
-    }
-    super.onBackPressed()
+    @Suppress("DEPRECATION", "OVERRIDE_DEPRECATION")
+    override fun onBackPressed() {
+        if (editModeHelper?.isEditMode == true) {
+            editModeHelper?.closeEditMode()
+            return
+        }
+        super.onBackPressed()
 }
 }

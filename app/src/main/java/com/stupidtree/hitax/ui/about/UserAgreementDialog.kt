@@ -11,6 +11,7 @@ import com.stupidtree.hitax.databinding.DialogBottomUserAgreementBinding
 import com.stupidtree.hitax.utils.ImageUtils.dp2px
 import com.stupidtree.style.widgets.TransparentModeledBottomSheetDialog
 
+@Suppress("DEPRECATION")
 class UserAgreementDialog :
     TransparentModeledBottomSheetDialog<UserAgreementViewModel, DialogBottomUserAgreementBinding>() {
     override fun getLayoutId(): Int {
@@ -25,7 +26,8 @@ class UserAgreementDialog :
         return UserAgreementViewModel::class.java
     }
 
-    override fun initViews(v: View) {
+    @Suppress("UNUSED_PARAMETER")
+    override fun initViews(view: View) {
         val views: MutableList<ViewGroup?> = mutableListOf(null, null)
         val adapter = object : PagerAdapter() {
             override fun getCount(): Int {

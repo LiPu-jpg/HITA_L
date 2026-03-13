@@ -56,10 +56,10 @@ object CourseResourceLinker {
         }
         val liveData = HoaRepository.getInstance().searchCourses(query)
         val observer = object : Observer<DataState<List<CourseResourceItem>>> {
-            override fun onChanged(state: DataState<List<CourseResourceItem>>) {
+            override fun onChanged(value: DataState<List<CourseResourceItem>>) {
                 liveData.removeObserver(this)
-                if (state.state == DataState.STATE.SUCCESS) {
-                    val match = selectBestMatch(state.data.orEmpty(), normalizedCode, normalizedName)
+                if (value.state == DataState.STATE.SUCCESS) {
+                    val match = selectBestMatch(value.data.orEmpty(), normalizedCode, normalizedName)
                     if (match != null) {
                         val displayName = match.courseName.ifBlank {
                             match.courseCode.ifBlank { normalizedName ?: courseNameRaw ?: match.repoName }

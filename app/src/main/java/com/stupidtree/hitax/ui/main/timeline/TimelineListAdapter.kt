@@ -92,12 +92,12 @@ class TimelineListAdapter(
         return id
     }
 
-    override fun createViewHolder(v: View, viewType: Int): RecyclerView.ViewHolder {
+    override fun createViewHolder(view: View, viewType: Int): RecyclerView.ViewHolder {
         return when (viewType) {
-            HINT -> HintHolder(v)
-            HEADER -> timelineHeaderHolder(v)
-            EMPTY, FOOT -> emptyHolder(v)
-            else -> timelineHolder(v, viewType)
+            HINT -> HintHolder(view)
+            HEADER -> timelineHeaderHolder(view)
+            EMPTY, FOOT -> emptyHolder(view)
+            else -> timelineHolder(view, viewType)
         }
     }
 
@@ -498,11 +498,11 @@ class TimelineListAdapter(
             head_counting_image = v.findViewById(R.id.tl_head_counting_image)
             head_counting_time = v.findViewById(R.id.tl_head_counting_time)
             head_goQuickly_classroom = v.findViewById(R.id.tl_head_gonow_classroom)
-            bt_bar_timetable.setOnClickListener { v ->
-                v.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+            bt_bar_timetable.setOnClickListener { view ->
+                view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
                 toggleHeadExpand()
             }
-            bt_bar_addEvent.setOnClickListener { v1: View? ->
+            bt_bar_addEvent.setOnClickListener { _: View? ->
             }
         }
 

@@ -264,7 +264,7 @@ class SubjectActivity : BaseActivity<SubjectViewModel, ActivitySubjectBinding>()
         val matcher = pt.matcher(subject.credit.toString())
         val df = DecimalFormat("0.0")
         if (matcher.find()) {
-            val c = matcher.group(0)
+            val c = matcher.group(0) ?: return "0.0"
             if (TextUtils.isEmpty(c)) return "0.0"
             val d = java.lang.Double.valueOf(c)
             return df.format(d)
@@ -272,6 +272,7 @@ class SubjectActivity : BaseActivity<SubjectViewModel, ActivitySubjectBinding>()
         return "0.0"
     }
 
+    @Suppress("DEPRECATION", "OVERRIDE_DEPRECATION")
     override fun onBackPressed() {
         when (editModeHelper.isEditMode) {
             true -> editModeHelper.closeEditMode()

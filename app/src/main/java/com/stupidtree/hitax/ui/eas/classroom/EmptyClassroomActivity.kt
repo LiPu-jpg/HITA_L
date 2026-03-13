@@ -11,6 +11,7 @@ import com.stupidtree.component.data.DataState
 import com.stupidtree.hitax.ui.eas.EASActivity
 import com.stupidtree.hitax.ui.eas.classroom.detail.EmptyClassroomDetailFragment
 import com.stupidtree.style.widgets.PopUpCheckableList
+import com.stupidtree.hitax.utils.TermNameFormatter
 import java.util.*
 
 class EmptyClassroomActivity :
@@ -64,7 +65,7 @@ class EmptyClassroomActivity :
         }
         viewModel.selectedTermLiveData.observe(this) {
             binding.refresh.isRefreshing = true
-            binding.termText.text = getDisplayTermName(it, viewModel.termsLiveData.value?.data)
+            binding.termText.text = getDisplayTermName(it)
         }
         viewModel.selectedWeekLiveData.observe(this) {
             binding.refresh.isRefreshing = true
@@ -96,7 +97,7 @@ class EmptyClassroomActivity :
         binding.list.layoutManager = GridLayoutManager(this, 2)
         binding.termLayout.setOnClickListener {
             viewModel.termsLiveData.value?.data?.let { terms ->
-                val names = terms.map { getDisplayTermName(it, terms) }
+                val names = terms.map { getDisplayTermName(it) }
                 if (names.isEmpty()) return@setOnClickListener
                 PopUpCheckableList<TermItem>()
                     .setListData(names, terms)
@@ -168,16 +169,7 @@ class EmptyClassroomActivity :
         })
     }
 
-    private fun getDisplayTermName(term: TermItem, allTerms: List<TermItem>?): String {
-        val termName = term.termName.trim()
-        if (termName.isNotBlank() && allTerms != null) {
-            val duplicates = allTerms.count { it.termName.trim() == termName }
-            if (duplicates <= 1) {
-                return termName
-            }
-        } else if (termName.isNotBlank()) {
-            return termName
-        }
-        return term.name
+    private fun getDisplayTermName(term: TermItem): String {
+        return TermNameFormatter.shortTermName(term.termName, term.name)
     }
 }

@@ -158,7 +158,7 @@ class NavigationFragment : BaseFragment<NavigationViewModel, FragmentNavigationB
                 //设置各种文字
                 binding?.username?.text = it.username
                 binding?.nickname?.text = it.nickname
-                binding?.userCard?.setOnClickListener { v ->
+                binding?.userCard?.setOnClickListener { _ ->
                     ActivityUtils.startProfileActivity(
                         requireContext(),
                         it.id,
@@ -198,13 +198,13 @@ class NavigationFragment : BaseFragment<NavigationViewModel, FragmentNavigationB
 
     private fun refreshEasState() {
         val token = activity?.application?.let { EASRepository.getInstance(it).getEasToken() }
-        token?.let { token ->
-            if (token.isLogin()) {
-                binding?.easTitle?.text = "教务登录为 ${token.username}"
+        token?.let { easToken ->
+            if (easToken.isLogin()) {
+                binding?.easTitle?.text = "教务登录为 ${easToken.username}"
                 binding?.easDot?.imageTintList = ColorStateList.valueOf(getColorPrimary())
                 binding?.easAvatar?.let { it1 ->
                     ImageUtils.loadEASPictureInto(
-                        token.picture ?: "",
+                        easToken.picture ?: "",
                         it1
                     )
                 }

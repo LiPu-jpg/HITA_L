@@ -25,6 +25,7 @@ import com.stupidtree.hitax.R
  * 本项目所有Activity的基类
  * @param <TextRecord> 泛型T指定的是这个页面绑定的ViewModel
 </TextRecord> */
+@Suppress("DEPRECATION")
 abstract class BaseActivityCompose<T : ViewModel> : AppCompatActivity() {
     /**
      * 每个Acitivity绑定一个ViewModel
@@ -108,5 +109,4 @@ abstract class BaseActivityCompose<T : ViewModel> : AppCompatActivity() {
     }
 
 }
-
 

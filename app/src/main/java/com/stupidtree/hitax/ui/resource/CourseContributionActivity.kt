@@ -219,6 +219,7 @@ class CourseContributionActivity :
         }
     }
 
+    @Suppress("UNUSED_PARAMETER")
     private fun applyDefaultModeIfNeeded(summary: CourseStructureSummary) {
         if (selectedMode != null) {
             return
