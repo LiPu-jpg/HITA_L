@@ -296,7 +296,7 @@ class CourseContributionActivity :
                     return
                 }
                 ops.put(JSONObject().apply {
-                    put("op", "append_section_item")
+                    put("op", "add_section_item")
                     put("section", section)
                     put("item", JSONObject().apply {
                         put("content", content)
