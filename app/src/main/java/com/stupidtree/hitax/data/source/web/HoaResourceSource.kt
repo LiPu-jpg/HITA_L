@@ -14,8 +14,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import org.jsoup.Connection
 import org.jsoup.Jsoup
-import java.net.URLEncoder
-import java.nio.charset.StandardCharsets
+import java.util.UUID
 
 object HoaResourceSource {
     private val baseUrl = BuildConfig.HOA_BASE_URL.removeSuffix("/")
@@ -34,30 +33,85 @@ object HoaResourceSource {
         return req
     }
 
+    /**
+     * Extract campus from repo_name prefix.
+     * repo_name format: "campus/COURSE_CODE" or "campus/repo_name"
+     * Campus values: shenzhen, harbin, weihai
+     */
+    private fun extractCampus(repoName: String): String {
+        val parts = repoName.split("/")
+        return if (parts.isNotEmpty()) {
+            val campus = parts[0].lowercase()
+            when (campus) {
+                "shenzhen", "harbin", "weihai" -> campus
+                else -> "shenzhen" // Default fallback
+            }
+        } else {
+            "shenzhen" // Default fallback
+        }
+    }
+
+    /**
+     * Extract course_code from repo_name.
+     * repo_name format: "campus/COURSE_CODE" or "campus/repo_name"
+     */
+    private fun extractCourseCode(repoName: String): String {
+        val parts = repoName.split("/")
+        return if (parts.size >= 2) {
+            parts[1].uppercase()
+        } else {
+            repoName.uppercase()
+        }
+    }
+
     fun searchCourses(query: String): LiveData<DataState<List<CourseResourceItem>>> {
         val result = MutableLiveData<DataState<List<CourseResourceItem>>>()
         Thread {
             try {
-                val encoded = URLEncoder.encode(query.trim(), StandardCharsets.UTF_8.toString())
-                val response = withHeaders(Jsoup.connect("$baseUrl/v1/courses/search?q=$encoded&limit=100"))
-                    .method(Connection.Method.GET)
+                val requestBody = JSONObject()
+                requestBody.put("keyword", query.trim())
+                requestBody.put("campus", "") // Empty for all campuses
+
+                val response = withHeaders(Jsoup.connect("$baseUrl/v1/courses:search"))
+                    .header("Content-Type", "application/json")
+                    .requestBody(requestBody.toString())
+                    .method(Connection.Method.POST)
                     .execute()
+
                 if (response.statusCode() >= 400) {
                     result.postValue(DataState(DataState.STATE.FETCH_FAILED, response.body()))
                     return@Thread
                 }
-                val arr = JSONArray(response.body())
+
+                val resObj = JSONObject(response.body())
+                if (!resObj.optBoolean("ok", false)) {
+                    val error = resObj.optJSONObject("error")
+                    result.postValue(DataState(DataState.STATE.FETCH_FAILED, error?.optString("message", "Unknown error")))
+                    return@Thread
+                }
+
+                val data = resObj.optJSONObject("data")
+                val resultsArr = data?.optJSONArray("results") ?: JSONArray()
                 val items = mutableListOf<CourseResourceItem>()
-                for (index in 0 until arr.length()) {
-                    val obj = arr.optJSONObject(index) ?: continue
+
+                for (index in 0 until resultsArr.length()) {
+                    val obj = resultsArr.optJSONObject(index) ?: continue
+                    val org = obj.optString("org")
+                    val repo = obj.optString("repo")
+                    val repoName = if (org.isNotBlank() && repo.isNotBlank()) {
+                        "$org/$repo"
+                    } else {
+                        repo
+                    }
+
                     items.add(
                         CourseResourceItem(
-                            repoName = obj.optString("repo_name"),
-                            courseCode = obj.optString("course_code"),
-                            courseName = obj.optString("course_name"),
-                            repoType = obj.optString("repo_type", "normal"),
-                            teachers = jsonArrayToTeacherList(obj.optJSONArray("teachers")),
-                            aliases = jsonArrayToList(obj.optJSONArray("aliases")),
+                            repoName = repoName,
+                            courseCode = obj.optString("code"),
+                            courseName = obj.optString("name"),
+                            repoType = "normal", // Default type, not provided in new API
+                            teachers = emptyList(), // Not provided in new API
+                            aliases = emptyList(), // Not provided in new API
                         )
                     )
                 }
@@ -73,20 +127,41 @@ object HoaResourceSource {
         val result = MutableLiveData<DataState<CourseReadmeData>>()
         Thread {
             try {
-                val encoded = URLEncoder.encode(repoName, StandardCharsets.UTF_8.toString())
-                val response = withHeaders(Jsoup.connect("$baseUrl/v1/courses/readme?repo_name=$encoded"))
-                    .method(Connection.Method.GET)
+                val campus = extractCampus(repoName)
+                val courseCode = extractCourseCode(repoName)
+
+                val requestBody = JSONObject()
+                val target = JSONObject()
+                target.put("campus", campus)
+                target.put("course_code", courseCode)
+                requestBody.put("target", target)
+
+                val response = withHeaders(Jsoup.connect("$baseUrl/v1/course:read"))
+                    .header("Content-Type", "application/json")
+                    .requestBody(requestBody.toString())
+                    .method(Connection.Method.POST)
                     .execute()
+
                 if (response.statusCode() >= 400) {
                     result.postValue(DataState(DataState.STATE.FETCH_FAILED, response.body()))
                     return@Thread
                 }
-                val obj = JSONObject(response.body())
+
+                val resObj = JSONObject(response.body())
+                if (!resObj.optBoolean("ok", false)) {
+                    val error = resObj.optJSONObject("error")
+                    result.postValue(DataState(DataState.STATE.FETCH_FAILED, error?.optString("message", "Unknown error")))
+                    return@Thread
+                }
+
+                val data = resObj.optJSONObject("data")
+                val resultData = data?.optJSONObject("result")
+
                 result.postValue(
                     DataState(
                         CourseReadmeData(
-                            source = obj.optString("source"),
-                            markdown = obj.optString("readme_md"),
+                            source = resultData?.optString("readme_toml", ""),
+                            markdown = resultData?.optString("readme_md", ""),
                         ),
                         DataState.STATE.SUCCESS,
                     )
@@ -102,7 +177,7 @@ object HoaResourceSource {
         val result = MutableLiveData<DataState<CourseStructureSummary>>()
         Thread {
             try {
-                val encoded = URLEncoder.encode(repoName, StandardCharsets.UTF_8.toString())
+                val encoded = java.net.URLEncoder.encode(repoName, java.nio.charset.StandardCharsets.UTF_8.toString())
                 val response = withHeaders(Jsoup.connect("$baseUrl/v1/courses/structure?repo_name=$encoded"))
                     .method(Connection.Method.GET)
                     .execute()
@@ -195,25 +270,44 @@ object HoaResourceSource {
         val result = MutableLiveData<DataState<String>>()
         Thread {
             try {
-                val body = JSONObject()
-                body.put("repo_name", repoName)
-                body.put("course_code", courseCode)
-                body.put("course_name", courseName)
-                body.put("repo_type", repoType)
-                body.put("ops", ops)
-                val response = withHeaders(Jsoup.connect("$baseUrl/v1/courses/submit_ops"))
+                val campus = extractCampus(repoName)
+                val actualCourseCode = if (courseCode.isNotBlank()) courseCode else extractCourseCode(repoName)
+
+                val requestBody = JSONObject()
+                val target = JSONObject()
+                target.put("campus", campus)
+                target.put("course_code", actualCourseCode)
+                if (courseName.isNotBlank()) {
+                    target.put("course_name", courseName)
+                }
+                requestBody.put("target", target)
+                requestBody.put("ops", ops)
+                requestBody.put("idempotency_key", UUID.randomUUID().toString())
+
+                val response = withHeaders(Jsoup.connect("$baseUrl/v1/course:submit"))
                     .header("Content-Type", "application/json")
-                    .requestBody(body.toString())
+                    .requestBody(requestBody.toString())
                     .method(Connection.Method.POST)
                     .execute()
-                val res = JSONObject(response.body())
+
+                val resObj = JSONObject(response.body())
                 if (response.statusCode() >= 400) {
-                    result.postValue(DataState(DataState.STATE.FETCH_FAILED, res.optString("detail", response.body())))
+                    val error = resObj.optJSONObject("error")
+                    result.postValue(DataState(DataState.STATE.FETCH_FAILED, error?.optString("message", response.body())))
                     return@Thread
                 }
-                val prUrl = res.optString("pr_url")
-                val status = res.optString("status")
-                result.postValue(DataState(prUrl.ifBlank { status }, DataState.STATE.SUCCESS))
+
+                if (!resObj.optBoolean("ok", false)) {
+                    val error = resObj.optJSONObject("error")
+                    result.postValue(DataState(DataState.STATE.FETCH_FAILED, error?.optString("message", "Unknown error")))
+                    return@Thread
+                }
+
+                val data = resObj.optJSONObject("data")
+                val pr = data?.optJSONObject("pr")
+                val prUrl = pr?.optString("url", "")
+
+                result.postValue(DataState(prUrl, DataState.STATE.SUCCESS))
             } catch (e: Exception) {
                 result.postValue(DataState(DataState.STATE.FETCH_FAILED, e.message))
             }
@@ -263,6 +357,41 @@ object HoaResourceSource {
         }.start()
         return result
     }
+
+    /**
+     * Lookup PR state (new endpoint)
+     * GET /v1/pr:lookup
+     */
+    fun lookupPr(org: String, repo: String, number: Int): LiveData<DataState<JSONObject>> {
+        val result = MutableLiveData<DataState<JSONObject>>()
+        Thread {
+            try {
+                val url = "$baseUrl/v1/pr:lookup?org=${java.net.URLEncoder.encode(org, "UTF-8")}&repo=${java.net.URLEncoder.encode(repo, "UTF-8")}&number=$number"
+                val response = withHeaders(Jsoup.connect(url))
+                    .method(Connection.Method.GET)
+                    .execute()
+
+                if (response.statusCode() >= 400) {
+                    result.postValue(DataState(DataState.STATE.FETCH_FAILED, response.body()))
+                    return@Thread
+                }
+
+                val resObj = JSONObject(response.body())
+                if (!resObj.optBoolean("ok", false)) {
+                    val error = resObj.optJSONObject("error")
+                    result.postValue(DataState(DataState.STATE.FETCH_FAILED, error?.optString("message", "Unknown error")))
+                    return@Thread
+                }
+
+                val data = resObj.optJSONObject("data")
+                result.postValue(DataState(data, DataState.STATE.SUCCESS))
+            } catch (e: Exception) {
+                result.postValue(DataState(DataState.STATE.FETCH_FAILED, e.message))
+            }
+        }.start()
+        return result
+    }
+
     private fun jsonArrayToList(array: JSONArray?): List<String> {
         val result = mutableListOf<String>()
         for (index in 0 until (array?.length() ?: 0)) {
