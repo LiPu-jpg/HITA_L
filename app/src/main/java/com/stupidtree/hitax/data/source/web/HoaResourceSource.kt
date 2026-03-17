@@ -177,16 +177,37 @@ object HoaResourceSource {
         val result = MutableLiveData<DataState<CourseStructureSummary>>()
         Thread {
             try {
-                val encoded = java.net.URLEncoder.encode(repoName, java.nio.charset.StandardCharsets.UTF_8.toString())
-                val response = withHeaders(Jsoup.connect("$baseUrl/v1/courses/structure?repo_name=$encoded"))
-                    .method(Connection.Method.GET)
+                val campus = extractCampus(repoName)
+                val courseCode = extractCourseCode(repoName)
+
+                val requestBody = JSONObject()
+                val target = JSONObject()
+                target.put("campus", campus)
+                target.put("course_code", courseCode)
+                requestBody.put("target", target)
+                requestBody.put("include_toml", false)
+
+                val response = withHeaders(Jsoup.connect("$baseUrl/v1/course:read"))
+                    .header("Content-Type", "application/json")
+                    .requestBody(requestBody.toString())
+                    .method(Connection.Method.POST)
                     .execute()
+
                 if (response.statusCode() >= 400) {
                     result.postValue(DataState(DataState.STATE.FETCH_FAILED, response.body()))
                     return@Thread
                 }
-                val obj = JSONObject(response.body())
-                val summary = obj.optJSONObject("summary") ?: JSONObject()
+
+                val resObj = JSONObject(response.body())
+                if (!resObj.optBoolean("ok", false)) {
+                    val error = resObj.optJSONObject("error")
+                    result.postValue(DataState(DataState.STATE.FETCH_FAILED, error?.optString("message", "Unknown error")))
+                    return@Thread
+                }
+
+                val data = resObj.optJSONObject("data")
+                val resultData = data?.optJSONObject("result") ?: JSONObject()
+                val summary = resultData.optJSONObject("summary") ?: JSONObject()
                 val meta = summary.optJSONObject("meta") ?: JSONObject()
                 val sectionsObj = summary.optJSONObject("sections") ?: JSONObject()
                 val normalSections = mutableListOf<CourseSectionSummary>()
