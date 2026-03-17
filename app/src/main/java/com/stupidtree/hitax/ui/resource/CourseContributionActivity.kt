@@ -297,11 +297,9 @@ class CourseContributionActivity :
                 }
                 ops.put(JSONObject().apply {
                     put("op", "add_section_item")
-                    put("section", section)
-                    put("item", JSONObject().apply {
-                        put("content", content)
-                        put("author", author)
-                    })
+                    put("title", section)
+                    put("content", content)
+                    put("author", author)
                 })
             }
             ContributionMode.MULTI_COURSE_REVIEW -> {
