@@ -160,8 +160,8 @@ object HoaResourceSource {
                 result.postValue(
                     DataState(
                         CourseReadmeData(
-                            source = resultData?.optString("readme_toml", ""),
-                            markdown = resultData?.optString("readme_md", ""),
+                            source = resultData?.optString("readme_toml", "") ?: "",
+                            markdown = resultData?.optString("readme_md", "") ?: "",
                         ),
                         DataState.STATE.SUCCESS,
                     )
@@ -307,7 +307,7 @@ object HoaResourceSource {
                 val pr = data?.optJSONObject("pr")
                 val prUrl = pr?.optString("url", "")
 
-                result.postValue(DataState(prUrl, DataState.STATE.SUCCESS))
+                result.postValue(DataState(prUrl ?: "", DataState.STATE.SUCCESS))
             } catch (e: Exception) {
                 result.postValue(DataState(DataState.STATE.FETCH_FAILED, e.message))
             }
