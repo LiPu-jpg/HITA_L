@@ -25,7 +25,7 @@ android {
             }
         }
 
-        buildConfigField "String", "HOA_BASE_URL", '"https://liulipule.com/"'
+        buildConfigField "String", "HOA_BASE_URL", '"http://47.115.160.70:8081"'
         buildConfigField "String", "HOA_API_KEY", '""'
         buildConfigField "String", "UPDATE_URL", '"https://github.com/LiPu-jpg/HITA_L/releases/latest"'
         buildConfigField "String", "UPDATE_VERSION_NAME", '"1.4.6"'
