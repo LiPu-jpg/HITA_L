@@ -305,10 +305,12 @@ object HoaResourceSource {
                 requestBody.put("ops", ops)
                 requestBody.put("idempotency_key", UUID.randomUUID().toString())
 
+                // PR submit may take longer due to multiple GitHub API calls
                 val response = withHeaders(Jsoup.connect("$baseUrl/v1/course:submit"))
                     .header("Content-Type", "application/json")
                     .requestBody(requestBody.toString())
                     .method(Connection.Method.POST)
+                    .timeout(60000) // 60 seconds for PR submit
                     .execute()
 
                 val resObj = JSONObject(response.body())
