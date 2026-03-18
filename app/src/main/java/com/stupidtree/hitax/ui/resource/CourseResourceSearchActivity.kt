@@ -141,7 +141,9 @@ class CourseResourceSearchActivity :
             holder.binding.tag.text = if (data?.repoType == "multi-project") "多课程" else "课程"
             holder.binding.card.setOnClickListener {
                 data ?: return@setOnClickListener
-                if (mode == ActivityUtils.CourseResourceMode.SUBMIT) {
+                // For multi-project repos, always open readme page first to allow course selection
+                // For normal repos, go directly to contribution if in SUBMIT mode
+                if (mode == ActivityUtils.CourseResourceMode.SUBMIT && data.repoType != "multi-project") {
                     ActivityUtils.startCourseContributionActivity(
                         this@CourseResourceSearchActivity,
                         data.repoName,
