@@ -29,7 +29,6 @@ class CourseContributionActivity :
         NORMAL_SECTION_APPEND,
         MULTI_COURSE_REVIEW,
         MULTI_TEACHER_REVIEW,
-        MULTI_SECTION_APPEND,
     }
 
     private lateinit var repoName: String
@@ -63,7 +62,6 @@ class CourseContributionActivity :
 
         binding.typeLayout.setOnClickListener { showModePicker() }
         binding.courseLayout.setOnClickListener { showCoursePicker() }
-        binding.teacherLayout.setOnClickListener { showTeacherPicker() }
         binding.authorDateLayout.setOnClickListener { pickDateTime() }
         binding.submitButton.setOnClickListener { submit() }
 
@@ -73,10 +71,12 @@ class CourseContributionActivity :
             binding.progress.isVisible = false
             if (state.state == DataState.STATE.SUCCESS) {
                 val summary = state.data ?: return@observe
+                android.util.Log.d("CourseContrib", "Loaded: repoType=${summary.repoType}, courses=${summary.courses.size}, teachers=${summary.teachers.size}")
                 repoType = summary.repoType.ifBlank { repoType }
                 if (repoType == "multi-project" && selectedCourse == null) {
                     selectedCourse = summary.courses.firstOrNull()
                     binding.courseValue.text = selectedCourse?.name?.ifBlank { selectedCourse?.code } ?: ""
+                    android.util.Log.d("CourseContrib", "Selected course: ${selectedCourse?.name}, teachers: ${selectedCourse?.teachers}")
                 }
                 if (repoType != "multi-project" && binding.teacherInput.text.isNullOrBlank()) {
                     summary.teachers.firstOrNull()?.let { binding.teacherInput.setText(it) }
@@ -98,7 +98,6 @@ class CourseContributionActivity :
                 }
             }
         }
-        updateModeVisibility()
     }
 
     override fun onStart() {
@@ -112,7 +111,6 @@ class CourseContributionActivity :
             listOf(
                 getString(R.string.course_contribution_mode_course_review),
                 getString(R.string.course_contribution_mode_multi_teacher_review),
-                getString(R.string.course_contribution_mode_multi_section_append),
             )
         } else {
             listOf(
@@ -124,7 +122,6 @@ class CourseContributionActivity :
             listOf(
                 ContributionMode.MULTI_COURSE_REVIEW,
                 ContributionMode.MULTI_TEACHER_REVIEW,
-                ContributionMode.MULTI_SECTION_APPEND,
             )
         } else {
             listOf(
@@ -155,26 +152,13 @@ class CourseContributionActivity :
             .show()
     }
 
-    private fun showTeacherPicker() {
-        val labels = when (selectedMode) {
-            ContributionMode.MULTI_TEACHER_REVIEW -> selectedCourse?.teachers
-            else -> emptyList()
-        } ?: emptyList()
-        if (labels.isEmpty()) return
-        androidx.appcompat.app.AlertDialog.Builder(this)
-            .setItems(labels.toTypedArray()) { _, which -> binding.teacherValue.setText(labels[which]) }
-            .show()
-    }
-
     private fun updateModeVisibility() {
         val mode = selectedMode
         binding.courseLayout.isVisible = mode == ContributionMode.MULTI_COURSE_REVIEW ||
-            mode == ContributionMode.MULTI_TEACHER_REVIEW ||
-            mode == ContributionMode.MULTI_SECTION_APPEND
+            mode == ContributionMode.MULTI_TEACHER_REVIEW
         binding.teacherLayout.isVisible = mode == ContributionMode.MULTI_TEACHER_REVIEW
         binding.teacherInputLayout.isVisible = mode == ContributionMode.NORMAL_TEACHER_REVIEW
-        binding.sectionLayout.isVisible = mode == ContributionMode.NORMAL_SECTION_APPEND ||
-            mode == ContributionMode.MULTI_SECTION_APPEND
+        binding.sectionLayout.isVisible = mode == ContributionMode.NORMAL_SECTION_APPEND
         binding.topicLayout.isVisible = mode == ContributionMode.MULTI_COURSE_REVIEW
     }
 
@@ -239,7 +223,6 @@ class CourseContributionActivity :
             ContributionMode.NORMAL_SECTION_APPEND -> getString(R.string.course_contribution_mode_section_append)
             ContributionMode.MULTI_COURSE_REVIEW -> getString(R.string.course_contribution_mode_course_review)
             ContributionMode.MULTI_TEACHER_REVIEW -> getString(R.string.course_contribution_mode_multi_teacher_review)
-            ContributionMode.MULTI_SECTION_APPEND -> getString(R.string.course_contribution_mode_multi_section_append)
         }
     }
 
@@ -312,10 +295,11 @@ class CourseContributionActivity :
                     Snackbar.make(binding.root, R.string.course_contribution_fill_content, Snackbar.LENGTH_SHORT).show()
                     return
                 }
+                // Use add_section_item instead of append_course_review (deprecated)
                 ops.put(JSONObject().apply {
-                    put("op", "append_course_review")
+                    put("op", "add_section_item")
                     put("course_name", course.name)
-                    put("topic", topic.ifBlank { getString(R.string.course_contribution_topic) })
+                    put("title", topic.ifBlank { "课程评价" })
                     put("content", content)
                     put("author", author)
                 })
@@ -340,30 +324,6 @@ class CourseContributionActivity :
                     put("teacher_name", teacher)
                     put("content", content)
                     put("author", author)
-                })
-            }
-            ContributionMode.MULTI_SECTION_APPEND -> {
-                val course = selectedCourse ?: run {
-                    Snackbar.make(binding.root, R.string.course_contribution_pick_course, Snackbar.LENGTH_SHORT).show()
-                    return
-                }
-                val section = binding.sectionValue.text?.toString()?.trim().orEmpty()
-                if (section.isBlank()) {
-                    Snackbar.make(binding.root, R.string.course_contribution_pick_section, Snackbar.LENGTH_SHORT).show()
-                    return
-                }
-                if (content.isBlank()) {
-                    Snackbar.make(binding.root, R.string.course_contribution_fill_content, Snackbar.LENGTH_SHORT).show()
-                    return
-                }
-                ops.put(JSONObject().apply {
-                    put("op", "append_course_section_item")
-                    put("course_name", course.name)
-                    put("section_title", section)
-                    put("item", JSONObject().apply {
-                        put("content", content)
-                        put("author", author)
-                    })
                 })
             }
         }

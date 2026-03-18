@@ -131,6 +131,7 @@
     <string name="course_contribution_section">章节</string>
     <string name="course_contribution_section_hint">填写章节标题（如 考核/考试）</string>
     <string name="course_contribution_teacher">教师</string>
+    <string name="course_contribution_teacher_hint">填写教师姓名</string>
     <string name="course_contribution_topic">主题</string>
     <string name="course_contribution_content">内容</string>
     <string name="course_contribution_item_name">条目名称</string>

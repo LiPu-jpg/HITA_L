@@ -103,15 +103,18 @@ object HoaResourceSource {
                     } else {
                         repo
                     }
+                    
+                    // DEBUG: Log the raw object
+                    android.util.Log.d("HoaResourceSource", "Search result item: ${obj.toString()}")
 
                     items.add(
                         CourseResourceItem(
                             repoName = repoName,
                             courseCode = obj.optString("code"),
                             courseName = obj.optString("name"),
-                            repoType = "normal", // Default type, not provided in new API
-                            teachers = emptyList(), // Not provided in new API
-                            aliases = emptyList(), // Not provided in new API
+                            repoType = obj.optString("repo_type", "normal"),
+                            teachers = jsonArrayToList(obj.optJSONArray("teachers")),
+                            aliases = jsonArrayToList(obj.optJSONArray("aliases")),
                         )
                     )
                 }
@@ -207,6 +210,17 @@ object HoaResourceSource {
 
                 val data = resObj.optJSONObject("data")
                 val resultData = data?.optJSONObject("result") ?: JSONObject()
+                
+                // DEBUG: Log the raw response structure
+                android.util.Log.d("HoaResourceSource", "Course read response: ${resObj.toString(2)}")
+                android.util.Log.d("HoaResourceSource", "Result data: ${resultData.toString(2)}")
+                
+                val readmeMd = resultData.optString("readme_md", "")
+                val tomlMeta = parseTomlMeta(readmeMd)
+                
+                android.util.Log.d("HoaResourceSource", "readme_md length: ${readmeMd.length}, contains TOML-COURSE: ${readmeMd.contains("TOML-COURSE:")}")
+                android.util.Log.d("HoaResourceSource", "readme_md first 500 chars: ${readmeMd.take(500)}")
+                
                 val summary = resultData.optJSONObject("summary") ?: JSONObject()
                 val meta = summary.optJSONObject("meta") ?: JSONObject()
                 val sectionsObj = summary.optJSONObject("sections") ?: JSONObject()
@@ -243,25 +257,36 @@ object HoaResourceSource {
                     )
                 }
 
-                val courses = mutableListOf<CourseSummary>()
+                var courses = mutableListOf<CourseSummary>()
                 val coursesArr = summary.optJSONArray("courses")
-                for (index in 0 until (coursesArr?.length() ?: 0)) {
-                    val item = coursesArr?.optJSONObject(index) ?: continue
-                    courses.add(
-                        CourseSummary(
-                            name = item.optString("name"),
-                            code = item.optString("code"),
-                            reviewTopics = jsonArrayToList(item.optJSONArray("review_topics")),
-                            teachers = jsonArrayToTeacherList(item.optJSONArray("teachers")),
-                            sections = jsonArrayToList(item.optJSONArray("sections")),
+                if (coursesArr != null && coursesArr.length() > 0) {
+                    for (index in 0 until coursesArr.length()) {
+                        val item = coursesArr.optJSONObject(index) ?: continue
+                        courses.add(
+                            CourseSummary(
+                                name = item.optString("name"),
+                                code = item.optString("code"),
+                                reviewTopics = jsonArrayToList(item.optJSONArray("review_topics")),
+                                teachers = jsonArrayToTeacherList(item.optJSONArray("teachers")),
+                                sections = jsonArrayToList(item.optJSONArray("sections")),
+                            )
                         )
-                    )
+                    }
+                }
+                if (courses.isEmpty() && readmeMd.contains("TOML-COURSE:")) {
+                    android.util.Log.d("HoaResourceSource", "Parsing TOML courses from readme")
+                    courses = parseTomlCourses(readmeMd)
+                    android.util.Log.d("HoaResourceSource", "Parsed ${courses.size} courses from TOML")
                 }
                 val teachers = jsonArrayToTeacherList(summary.optJSONArray("teachers"))
-                val resolvedRepoType = meta.optString("repo_type").ifBlank {
+                val resolvedRepoType = tomlMeta["repo_type"] ?: meta.optString("repo_type").ifBlank {
                     if (courses.isNotEmpty()) "multi-project" else "normal"
                 }
-
+                
+                // DEBUG: Log repo type detection
+                android.util.Log.d("HoaResourceSource", "Detected repo_type: $resolvedRepoType, courses count: ${courses.size}, meta.repo_type: ${meta.optString("repo_type")}, tomlMeta: $tomlMeta")
+                android.util.Log.d("HoaResourceSource", "Courses parsed: ${courses.map { it.name to it.teachers }}")
+                
                 result.postValue(
                     DataState(
                         CourseStructureSummary(
@@ -413,6 +438,81 @@ object HoaResourceSource {
             }
         }.start()
         return result
+    }
+
+    private fun parseTomlMeta(readmeMd: String): Map<String, String> {
+        val result = mutableMapOf<String, String>()
+        val regex = """<!--\s*TOML-META:\s*(.*?)\s*-->""".toRegex()
+        val match = regex.find(readmeMd)
+        if (match != null) {
+            val pairs = match.groupValues[1].split(",").map { it.trim() }
+            for (pair in pairs) {
+                val keyValue = pair.split("=").map { it.trim().removeSurrounding("\"") }
+                if (keyValue.size == 2) {
+                    result[keyValue[0]] = keyValue[1]
+                }
+            }
+        }
+        return result
+    }
+
+    private fun parseTomlCourses(readmeMd: String): MutableList<CourseSummary> {
+        val courses = mutableListOf<CourseSummary>()
+        val regex = """<!--\s*TOML-COURSE:\s*([^>]+)\s*-->""".toRegex()
+        android.util.Log.d("HoaResourceSource", "TOML regex pattern: $regex")
+        val matches = regex.findAll(readmeMd)
+        val matchList = matches.toList()
+        android.util.Log.d("HoaResourceSource", "Found ${matchList.size} TOML-COURSE matches")
+        for (match in matchList) {
+            android.util.Log.d("HoaResourceSource", "Match: ${match.value}, group1: ${match.groupValues[1]}")
+            val content = match.groupValues[1]
+            var code = ""
+            var name = ""
+            
+            // Parse code="..."
+            val codeRegex = """code\s*=\s*"([^"]*)"""".toRegex()
+            val codeMatch = codeRegex.find(content)
+            if (codeMatch != null) {
+                code = codeMatch.groupValues[1]
+            }
+            
+            // Parse name="..."
+            val nameRegex = """name\s*=\s*"([^"]*)"""".toRegex()
+            val nameMatch = nameRegex.find(content)
+            if (nameMatch != null) {
+                name = nameMatch.groupValues[1]
+            }
+            
+            android.util.Log.d("HoaResourceSource", "Parsed: code=$code, name=$name")
+            if (name.isNotBlank()) {
+                val teachers = extractTeachersForCourse(readmeMd, name)
+                courses.add(CourseSummary(name = name, code = code, teachers = teachers))
+            }
+        }
+        return courses
+    }
+
+    private fun extractTeachersForCourse(readmeMd: String, courseName: String): List<String> {
+        val teachers = mutableListOf<String>()
+        val courseHeaderRegex = """##\s*$courseName""".toRegex()
+        val courseMatch = courseHeaderRegex.find(readmeMd) ?: return teachers
+        val courseSectionStart = courseMatch.range.last + 1
+        val nextCourseRegex = """##\s*[\u4e00-\u9fa5]""".toRegex()
+        val nextCourseMatch = nextCourseRegex.find(readmeMd, courseSectionStart)
+        val courseSectionEnd = nextCourseMatch?.range?.first ?: readmeMd.length
+        val courseSection = readmeMd.substring(courseSectionStart, courseSectionEnd)
+        
+        val teacherHeaderRegex = """###\s*授课教师""".toRegex()
+        if (teacherHeaderRegex.containsMatchIn(courseSection)) {
+            val teacherListRegex = """(?<=- )\s*([^(\n]+)""".toRegex()
+            teacherListRegex.findAll(courseSection).forEach { match ->
+                val teacherName = match.groupValues[1].trim()
+                if (teacherName.isNotBlank()) {
+                    teachers.add(teacherName)
+                }
+            }
+        }
+        return teachers
     }
 
     private fun jsonArrayToList(array: JSONArray?): List<String> {
