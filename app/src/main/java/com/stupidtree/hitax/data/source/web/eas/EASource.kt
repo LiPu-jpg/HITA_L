@@ -454,7 +454,7 @@ class EASource internal constructor() : EASService {
         return res
     }
 
-    // ================================================================ 总课表（使用新版 querykbrczong 接口）
+    // ================================================================ 周课表（使用 querykbrcbyday 按天查询，有完整节次信息）
     override fun getTimetableOfTerm(
         term: TermItem,
         token: EASToken
@@ -463,83 +463,70 @@ class EASource internal constructor() : EASService {
         Thread {
             val result: MutableList<CourseItem> = ArrayList()
             try {
-                // 获取学期开始日期用于计算周次
+                // 获取学期开始日期
                 val startDateCal = getStartDateSync(token, term)
                 val startDate = startDateCal.timeInMillis
                 
-                // 使用当前日期获取总课表（接口会返回整个学期）
-                val today = Calendar.getInstance()
-                val dateStr = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(today.time)
+                // 获取学期总周数（默认18周）
+                val weekCount = 18
+                val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
                 
-                // 调用新版总课表接口
-                val resp = authedFormPost(
-                    token, "/app/kbrcbyapp/querykbrczong",
-                    mapOf("nyr" to dateStr)
-                )
-                val jo = JsonUtils.getJsonObject(resp.body())
-                val contentArr = jo?.optJSONArray("content") ?: run {
-                    res.postValue(DataState(result, DataState.STATE.SUCCESS))
-                    return@Thread
-                }
-
-                // 解析每一天的课程
-                for (i in 0 until contentArr.length()) {
-                    val dayObj = contentArr.optJSONObject(i) ?: continue
-                    val dow = dayObj.optString("XQJ", "0").toIntOrNull() ?: 0
-                    val date = dayObj.optString("RQ", "")
-                    val kbrcArr = dayObj.optJSONArray("kbrc") ?: continue
-                    
-                    // 计算该日期对应的周次
-                    val week = if (date.isNotEmpty()) {
-                        val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
-                        val courseDate = sdf.parse(date)?.time ?: 0
-                        val diffMillis = courseDate - startDate
-                        val diffDays = diffMillis / (24 * 60 * 60 * 1000)
-                        (diffDays / 7 + 1).toInt().coerceAtLeast(1)
-                    } else 0
-                    
-                    for (j in 0 until kbrcArr.length()) {
-                        val kc = kbrcArr.optJSONObject(j) ?: continue
-                        val name = kc.optString("KCMC", "").trim()
-                        if (name.isEmpty()) continue
+                // 按天查询整个学期
+                for (week in 1..weekCount) {
+                    for (dow in 1..7) {
+                        // 计算日期
+                        val cal = Calendar.getInstance()
+                        cal.timeInMillis = startDate
+                        cal.add(Calendar.WEEK_OF_YEAR, week - 1)
+                        cal.add(Calendar.DAY_OF_WEEK, dow - cal.get(Calendar.DAY_OF_WEEK) + 1)
+                        val dateStr = sdf.format(cal.time)
                         
-                        val code = CourseCodeUtils.normalize(kc.optString("KCDM")) ?: ""
-                        val classroom = kc.optString("CDMC", "")
-                        val teacher = kc.optString("DGJSMC", "")
+                        // 调用按天查询接口（有完整节次信息）
+                        val resp = authedFormPost(
+                            token, "/app/kbrcbyapp/querykbrcbyday",
+                            mapOf("nyr" to dateStr)
+                        )
+                        val jo = JsonUtils.getJsonObject(resp.body())
+                        val contentArr = jo?.optJSONArray("content") ?: continue
                         
-                        // 节次信息（新接口可能没有详细节次，使用默认值或从其他字段推断）
-                        val xb = kc.optString("XB", "0").toIntOrNull() ?: 0
-                        val begin = when {
-                            xb > 0 -> ((xb - 1) / 2) * 2 + 1  // 粗略估计
-                            else -> 1
-                        }
-                        val last = 2  // 默认2节课
-                        
-                        // 合并同课同周的
-                        val existing = result.find {
-                            it.name == name && it.dow == dow && it.begin == begin
-                        }
-                        if (existing != null) {
-                            if (week > 0 && !existing.weeks.contains(week)) {
-                                existing.weeks.add(week)
+                        // 解析当天的课程
+                        for (i in 0 until contentArr.length()) {
+                            val item = contentArr.optJSONObject(i) ?: continue
+                            val kbrcArr = item.optJSONArray("kbrc") ?: continue
+                            val ksjc = item.optInt("KSJC", 0)  // 开始节次
+                            val jsjc = item.optInt("JSJC", 0)  // 结束节次
+                            
+                            for (j in 0 until kbrcArr.length()) {
+                                val kc = kbrcArr.optJSONObject(j) ?: continue
+                                val name = kc.optString("KCMC", "").trim()
+                                if (name.isEmpty()) continue
+                                
+                                val code = CourseCodeUtils.normalize(kc.optString("KCDM")) ?: ""
+                                val classroom = kc.optString("CDMC", "")
+                                
+                                // 合并同课同时间
+                                val existing = result.find {
+                                    it.name == name && it.dow == dow && it.begin == ksjc
+                                }
+                                if (existing != null) {
+                                    if (!existing.weeks.contains(week)) {
+                                        existing.weeks.add(week)
+                                    }
+                                    if (existing.classroom.isNullOrBlank() && classroom.isNotBlank()) {
+                                        existing.classroom = classroom
+                                    }
+                                } else if (dow > 0 && ksjc > 0) {
+                                    val courseItem = CourseItem()
+                                    courseItem.name = name
+                                    courseItem.code = code
+                                    courseItem.dow = dow
+                                    courseItem.begin = ksjc
+                                    courseItem.last = jsjc - ksjc + 1
+                                    courseItem.classroom = classroom
+                                    courseItem.weeks.add(week)
+                                    result.add(courseItem)
+                                }
                             }
-                            if (existing.classroom.isNullOrBlank() && classroom.isNotBlank()) {
-                                existing.classroom = classroom
-                            }
-                            if (existing.teacher.isNullOrBlank() && teacher.isNotBlank()) {
-                                existing.teacher = teacher
-                            }
-                        } else if (dow > 0) {
-                            val courseItem = CourseItem()
-                            courseItem.name = name
-                            courseItem.code = code
-                            courseItem.dow = dow
-                            courseItem.begin = begin
-                            courseItem.last = last
-                            courseItem.classroom = classroom
-                            courseItem.teacher = teacher
-                            if (week > 0) courseItem.weeks.add(week)
-                            result.add(courseItem)
                         }
                     }
                 }

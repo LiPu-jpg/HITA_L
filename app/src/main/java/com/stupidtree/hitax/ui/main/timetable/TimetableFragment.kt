@@ -304,7 +304,65 @@ class TimetableFragment :
                         v: View,
                         eventItems: List<EventItem>
                     ): Boolean {
-                        return false
+                        // 冲突课程长按 - 如果只有一门课程，直接删除；如果有多门，弹出选择
+                        if (eventItems.isEmpty()) return false
+                        
+                        val pm = PopupMenu(requireContext(), v)
+                        pm.inflate(R.menu.menu_opr_timetable)
+                        pm.setOnMenuItemClickListener { item ->
+                            if (item.itemId == R.id.delete) {
+                                if (eventItems.size == 1) {
+                                    // 只有一门课程，直接删除
+                                    val ad = AlertDialog.Builder(requireContext())
+                                        .setNegativeButton(R.string.button_cancel, null)
+                                        .setPositiveButton(R.string.button_confirm) { _, _ ->
+                                            val ef: ExplosionField =
+                                                ExplosionField.attach2Window(requireActivity())
+                                            ef.explode(v)
+                                            v.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                                            Thread{
+                                                activity?.application?.let {
+                                                    TimetableRepository.getInstance(it).actionDeleteEvents(
+                                                        eventItems
+                                                    )
+                                                }
+                                            }.start()
+                                        }.create()
+                                    ad.setTitle(R.string.dialog_title_sure_delete)
+                                    ad.show()
+                                } else {
+                                    // 多门课程冲突，弹出选择对话框
+                                    val names = eventItems.map { it.name }.toTypedArray()
+                                    AlertDialog.Builder(requireContext())
+                                        .setTitle(R.string.dialog_title_select_delete)
+                                        .setItems(names) { _, which ->
+                                            val selectedEvent = eventItems[which]
+                                            val ad = AlertDialog.Builder(requireContext())
+                                                .setNegativeButton(R.string.button_cancel, null)
+                                                .setPositiveButton(R.string.button_confirm) { _, _ ->
+                                                    val ef: ExplosionField =
+                                                        ExplosionField.attach2Window(requireActivity())
+                                                    ef.explode(v)
+                                                    v.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                                                    Thread{
+                                                        activity?.application?.let {
+                                                            TimetableRepository.getInstance(it).actionDeleteEvents(
+                                                                listOf(selectedEvent)
+                                                            )
+                                                        }
+                                                    }.start()
+                                                }.create()
+                                            ad.setTitle(R.string.dialog_title_sure_delete)
+                                            ad.show()
+                                        }
+                                        .setNegativeButton(R.string.button_cancel, null)
+                                        .show()
+                                }
+                            }
+                            true
+                        }
+                        pm.show()
+                        return true
                     }
                 })
                 views[pos]?.setOnAddClickListener(object : TimeTableView.OnAddClickListener {

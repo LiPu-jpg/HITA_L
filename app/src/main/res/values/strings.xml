@@ -295,6 +295,7 @@
     <string name="dialog_course_rate_s">这堂课学得怎么样？</string>
     <string name="notif_delete_success">删除成功！</string>
     <string name="dialog_title_sure_delete">确定删除吗？</string>
+    <string name="dialog_title_select_delete">选择要删除的课程</string>
     <string name="none">无</string>
     <string name="pick_teacher">选择教师</string>
     <string name="pick_classroom">选择教室</string>

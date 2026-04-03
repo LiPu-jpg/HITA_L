@@ -6,6 +6,7 @@ import android.graphics.Color
 import android.graphics.Typeface
 import android.text.TextUtils
 import android.util.TypedValue
+import android.view.LayoutInflater
 import android.view.View
 import android.widget.FrameLayout
 import android.widget.ImageView
@@ -128,67 +129,131 @@ class TimeTableBlockView constructor(
     @Suppress("UNCHECKED_CAST")
     private fun initDuplicateCard(context: Context) {
         val list: List<EventItem> = block as List<EventItem>
-        inflate(context, R.layout.fragment_timetable_duplicate_card, this)
-        card = findViewById(R.id.card)
-        val subCard:LinearLayout = findViewById(R.id.card1)
-        title = findViewById(R.id.title)
-        icon = findViewById(R.id.icon)
-        val names = mutableListOf<String>()
-        for (ei in list) names.add(ei.name)
-        title?.text = names.joinToString(",\n")
-        if (onDuplicateCardClickListener != null) card.setOnClickListener { v ->
-            onDuplicateCardClickListener?.onDuplicateClick(
-                v,
-                list
-            )
+        // 创建一个垂直的 LinearLayout 来容纳多个课程块
+        val container = LinearLayout(context)
+        container.orientation = LinearLayout.VERTICAL
+        container.layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
+        addView(container)
+        
+        // 为每个冲突的课程创建一个子块
+        val count = list.size
+        for (index in list.indices) {
+            val ei = list[index]
+            val childBlock = createChildEventCard(context, ei, index, count)
+            container.addView(childBlock)
         }
-        if (onDuplicateCardLongClickListener != null) card.setOnLongClickListener { v ->
-            onDuplicateCardLongClickListener?.let { return@let it.onDuplicateLongClick(v, list) }
-            return@setOnLongClickListener false
+        
+        // 为整个容器也设置点击事件（兼容旧的点击方式）
+        container.setOnClickListener { v ->
+            onDuplicateCardClickListener?.onDuplicateClick(v, list)
         }
-        val mainItem = list[0]
-        val subItem =  if(list.size>1)list[1] else mainItem
+        container.setOnLongClickListener { v ->
+            onDuplicateCardLongClickListener?.onDuplicateLongClick(v, list) == true
+        }
+    }
+    
+    /**
+     * 创建冲突课程中的一个子块
+     */
+    private fun createChildEventCard(context: Context, ei: EventItem, index: Int, total: Int): View {
+        val childView = FrameLayout(context)
+        val layoutParams = LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, 0, 1f)
+        if (index < total - 1) {
+            layoutParams.setMargins(0, 0, 0, 2) // 添加微小间距区分
+        }
+        childView.layoutParams = layoutParams
+        
+        // inflate 单个课程卡片布局（使用LayoutInflater因为布局使用了merge标签）
+        // attachToRoot=true 后布局已自动添加到 childView 中
+        LayoutInflater.from(context).inflate(R.layout.fragment_timetable_class_card, childView, true)
+        val card = childView.findViewById<View>(R.id.card)
+        val title = childView.findViewById<TextView>(R.id.title)
+        val subtitle = childView.findViewById<TextView>(R.id.subtitle)
+        val icon = childView.findViewById<ImageView>(R.id.icon)
+        
+        // 设置样式
+        if (styleSheet.isFadeEnabled) {
+            card.setBackgroundResource(R.drawable.spec_timetable_card_background_fade)
+        } else {
+            card.setBackgroundResource(R.drawable.spec_timetable_card_background)
+        }
+        
         if (styleSheet.isColorEnabled) {
-            subCard.backgroundTintList = ColorStateList.valueOf(mainItem.color)
-            card.backgroundTintList = ColorStateList.valueOf(subItem.color)
-
-            when (styleSheet.cardTitleColor) {
-                "subject" -> title?.setTextColor(mainItem.color)
-                "white" -> title?.setTextColor(Color.WHITE)
-                "black" -> title?.setTextColor(Color.BLACK)
-                "primary" -> title?.setTextColor(getColor(R.attr.colorPrimary))
-            }
+            card.backgroundTintList = ColorStateList.valueOf(ei.color)
         } else {
             card.backgroundTintList = ColorStateList.valueOf(getColor(R.attr.colorPrimary))
-            subCard.backgroundTintList = ColorStateList.valueOf(getColor(R.attr.colorPrimary))
-            when (styleSheet.cardTitleColor) {
-                "white" -> title?.setTextColor(Color.WHITE)
-                "black" -> title?.setTextColor(Color.BLACK)
-                "primary" -> title?.setTextColor(getColor(R.attr.colorPrimary))
-            }
         }
-        if (icon != null) {
-            if (styleSheet.isColorEnabled) {
-                icon?.visibility = VISIBLE
-                icon?.setColorFilter(Color.WHITE)
-                when (styleSheet.iconColor) {
-                    "subject" -> if (styleSheet.isColorEnabled) {
-                        icon?.setColorFilter(mainItem.color)
-                    } else icon?.setColorFilter(getColor(R.attr.colorPrimary))
-                    "white" -> icon?.setColorFilter(Color.WHITE)
-                    "black" -> icon?.setColorFilter(Color.BLACK)
-                    "primary" -> icon?.setColorFilter(getColor(R.attr.colorPrimary))
-                }
+        
+        when (styleSheet.cardTitleColor) {
+            "subject" -> if (styleSheet.isColorEnabled) {
+                title?.setTextColor(ei.color)
+            } else title?.setTextColor(getColor(R.attr.colorPrimary))
+            "white" -> title?.setTextColor(Color.WHITE)
+            "black" -> title?.setTextColor(Color.BLACK)
+            "primary" -> title?.setTextColor(getColor(R.attr.colorPrimary))
+        }
+        
+        when (styleSheet.subTitleColor) {
+            "subject" -> if (styleSheet.isColorEnabled) {
+                subtitle?.setTextColor(ei.color)
+            } else subtitle?.setTextColor(getColor(R.attr.colorPrimary))
+            "white" -> subtitle?.setTextColor(Color.WHITE)
+            "black" -> subtitle?.setTextColor(Color.BLACK)
+            "primary" -> subtitle?.setTextColor(getColor(R.attr.colorPrimary))
+        }
+        
+        if (styleSheet.cardIconEnabled) {
+            icon?.visibility = VISIBLE
+            icon?.setColorFilter(Color.WHITE)
+            when (styleSheet.iconColor) {
+                "subject" -> if (styleSheet.isColorEnabled) {
+                    icon?.setColorFilter(ei.color)
+                } else icon?.setColorFilter(getColor(R.attr.colorPrimary))
+                "white" -> icon?.setColorFilter(Color.WHITE)
+                "black" -> icon?.setColorFilter(Color.BLACK)
+                "primary" -> icon?.setColorFilter(getColor(R.attr.colorPrimary))
+            }
+        } else {
+            icon?.visibility = GONE
+        }
+        
+        // 点击事件 - 对于冲突课程中的子卡片，使用 onDuplicateCardClickListener 传递单个课程
+        card.setOnClickListener { v ->
+            // 尝试使用单个课程回调，如果没有设置则使用冲突课程回调
+            if (onCardClickListener != null) {
+                onCardClickListener?.onClick(v, ei)
             } else {
-                //icon?.visibility = GONE
+                onDuplicateCardClickListener?.onDuplicateClick(v, listOf(ei))
             }
         }
+        card.setOnLongClickListener { v: View ->
+            val result = if (onCardLongClickListener != null) {
+                onCardLongClickListener?.onLongClick(v, ei)
+            } else {
+                onDuplicateCardLongClickListener?.onDuplicateLongClick(v, listOf(ei))
+            }
+            return@setOnLongClickListener result == true
+        }
+        
+        title?.text = ei.name
+        subtitle?.text = if (TextUtils.isEmpty(ei.place)) "" else ei.place
         card.background.mutate().alpha = (255 * (styleSheet.cardOpacity.toFloat() / 100)).toInt()
+        
         if (styleSheet.isBoldText) {
             title?.typeface = Typeface.DEFAULT_BOLD
+            subtitle?.typeface = Typeface.DEFAULT_BOLD
         }
         title?.alpha = styleSheet.titleAlpha.toFloat() / 100
+        subtitle?.alpha = styleSheet.subtitleAlpha.toFloat() / 100
         title?.gravity = styleSheet.titleGravity
+        
+        // 设置文本大小适应小空间
+        if (total > 2) {
+            title?.textSize = 10f
+            subtitle?.textSize = 8f
+        }
+        
+        return childView
     }
 
     interface OnDuplicateCardLongClickListener {
@@ -211,13 +276,9 @@ class TimeTableBlockView constructor(
         if (block is EventItem) {
             return (block as EventItem).getDurationInMinutes()
         } else if (block is List<*>) {
-            var minStart = Long.MAX_VALUE
-            var maxEnd = Long.MIN_VALUE
-            for (e in block as List<*>) {
-                minStart = min(minStart, (e as EventItem).from.time)
-                maxEnd = max(maxEnd, e.to.time)
-            }
-            return ((maxEnd - minStart) / (60 * 1000)).toInt()
+            // 对于冲突课程，返回第一个课程的时间段（因为它们是并行的）
+            val list = block as List<EventItem>
+            return list[0].getDurationInMinutes()
         }
         return -1
     }
