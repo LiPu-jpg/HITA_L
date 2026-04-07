@@ -1,6 +1,7 @@
 package com.stupidtree.hitax.data.source.web.eas
 
 import android.annotation.SuppressLint
+import android.util.Log
 import android.util.Base64
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
@@ -44,6 +45,7 @@ import javax.crypto.Cipher
 class EASource internal constructor() : EASService {
 
     private val hostName = "https://mjw.hitsz.edu.cn/incoSpringBoot"
+    private val jwHostName = "https://jw.hitsz.edu.cn"
     private val basicAuth = "Basic aW5jb246MTIzNDU="
     private val timeout = 15000
 
@@ -112,6 +114,83 @@ class EASource internal constructor() : EASService {
             .method(Connection.Method.POST)
         data.forEach { (k, v) -> req.data(k, v) }
         return req.execute()
+    }
+
+    /** 新教务网页接口（xszykb），依赖登录后会话 cookies */
+    private fun jwFormPost(
+        token: EASToken,
+        path: String,
+        data: Map<String, String> = emptyMap()
+    ): Connection.Response {
+        warmupJwSession(token)
+        val req = Jsoup.newSession()
+            .url("$jwHostName$path")
+            .header("Accept", "*/*")
+            .header("Accept-Language", "zh-CN,zh;q=0.9")
+            .header("X-Requested-With", "XMLHttpRequest")
+            .header("Referer", "$jwHostName/authentication/main")
+            .header("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8")
+            .userAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36")
+            .cookies(token.cookies)
+            .timeout(timeout)
+            .ignoreContentType(true)
+            .ignoreHttpErrors(true)
+            .method(Connection.Method.POST)
+        data.forEach { (k, v) -> req.data(k, v) }
+        var resp = req.execute()
+        token.cookies.putAll(resp.cookies())
+
+        // jw 会话可能独立过期：检测 401 后尝试静默重登一次并重试同一请求
+        if (resp.statusCode() == 401 && tryRelogin(token)) {
+            warmupJwSession(token)
+            val retryReq = Jsoup.newSession()
+                .url("$jwHostName$path")
+                .header("Accept", "*/*")
+                .header("Accept-Language", "zh-CN,zh;q=0.9")
+                .header("X-Requested-With", "XMLHttpRequest")
+                .header("Referer", "$jwHostName/authentication/main")
+                .header("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8")
+                .userAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36")
+                .cookies(token.cookies)
+                .timeout(timeout)
+                .ignoreContentType(true)
+                .ignoreHttpErrors(true)
+                .method(Connection.Method.POST)
+            data.forEach { (k, v) -> retryReq.data(k, v) }
+            resp = retryReq.execute()
+            token.cookies.putAll(resp.cookies())
+        }
+        return resp
+    }
+
+    private fun tryRelogin(token: EASToken): Boolean {
+        val username = token.username?.trim().orEmpty()
+        val password = token.password.orEmpty()
+        if (username.isBlank() || password.isBlank()) return false
+        val refreshed = loginCore(username, password) ?: return false
+        token.accessToken = refreshed.accessToken
+        token.refreshToken = refreshed.refreshToken
+        token.cookies.clear()
+        token.cookies.putAll(refreshed.cookies)
+        return true
+    }
+
+    private fun warmupJwSession(token: EASToken) {
+        try {
+            val resp = Jsoup.newSession()
+                .url("$jwHostName/authentication/main")
+                .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+                .header("Accept-Language", "zh-CN,zh;q=0.9")
+                .userAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36")
+                .cookies(token.cookies)
+                .timeout(timeout)
+                .followRedirects(true)
+                .ignoreHttpErrors(true)
+                .method(Connection.Method.GET)
+                .execute()
+            token.cookies.putAll(resp.cookies())
+        } catch (_: Exception) {
+        }
     }
 
     private fun buildCookieMap(vararg responses: Connection.Response): HashMap<String, String> {
@@ -212,31 +291,60 @@ class EASource internal constructor() : EASService {
         val res = MutableLiveData<DataState<EASToken>>()
         Thread {
             try {
-                val session = Jsoup.newSession()
-                    .headers(
-                        mapOf(
-                            "_lang" to "cn",
-                            "Accept" to "*/*",
-                            "User-Agent" to "Mozilla/5.0 (Linux; Android 15) AppleWebKit/537.36 Chrome/144.0 Mobile Safari/537.36 uni-app",
-                            "Accept-Encoding" to "gzip",
-                            "Connection" to "Keep-Alive"
-                        )
-                    )
+                val token = loginCore(username, password)
+                if (token == null) {
+                    res.postValue(DataState(DataState.STATE.FETCH_FAILED, "登录失败"))
+                    return@Thread
+                }
+                res.postValue(DataState(token, DataState.STATE.SUCCESS))
+            } catch (e: Exception) {
+                e.printStackTrace()
+                res.postValue(DataState(DataState.STATE.FETCH_FAILED, e.message))
+            }
+        }.start()
+        return res
+    }
 
-                // 步骤1：获取 route cookie
-                val rsaResp = formPost(session, "/component/queryApplicationSetting/rsa", basicAuth, rolecode = "01")
-                // 步骤2：获取 RSA 参数（维持 session 一致）
-                val raskeyResp = formPost(session, "/c_raskey", basicAuth, rolecode = "06")
-                val rsaPublicKeys = parseRsaPublicKeysFromRaskey(raskeyResp.body())
-                val rolecodes = listOf("06", "01")
+    private fun loginCore(username: String, password: String): EASToken? {
+        val session = Jsoup.newSession()
+            .headers(
+                mapOf(
+                    "_lang" to "cn",
+                    "Accept" to "*/*",
+                    "User-Agent" to "Mozilla/5.0 (Linux; Android 15) AppleWebKit/537.36 Chrome/144.0 Mobile Safari/537.36 uni-app",
+                    "Accept-Encoding" to "gzip",
+                    "Connection" to "Keep-Alive"
+                )
+            )
 
-                // 步骤3：LDAP 登录（明文优先，失败再尝试加密）
-                var payload: JSONObject? = null
-                var token: EASToken? = null
-                for (role in rolecodes) {
+        val rsaResp = formPost(session, "/component/queryApplicationSetting/rsa", basicAuth, rolecode = "01")
+        val raskeyResp = formPost(session, "/c_raskey", basicAuth, rolecode = "06")
+        val rsaPublicKeys = parseRsaPublicKeysFromRaskey(raskeyResp.body())
+        val rolecodes = listOf("06", "01")
+
+        var payload: JSONObject? = null
+        var token: EASToken? = null
+        for (role in rolecodes) {
+            val ldapResp = formPost(
+                session, "/authentication/ldap", basicAuth, rolecode = role,
+                data = mapOf("username" to username, "password" to password)
+            )
+            payload = JsonUtils.getJsonObject(ldapResp.body())
+            token = buildTokenFromPayload(
+                payload,
+                username,
+                password,
+                buildCookieMap(rsaResp, raskeyResp, ldapResp)
+            )
+            if (token != null) return token
+        }
+        if (rsaPublicKeys.isNotEmpty()) {
+            loop@ for (role in rolecodes) {
+                for (publicKey in rsaPublicKeys) {
+                    val encrypted = encryptPasswordWithRsa(password, publicKey) ?: continue
                     val ldapResp = formPost(
                         session, "/authentication/ldap", basicAuth, rolecode = role,
-                        data = mapOf("username" to username, "password" to password)
+                        data = mapOf("username" to username, "password" to encrypted)
                     )
                     payload = JsonUtils.getJsonObject(ldapResp.body())
                     token = buildTokenFromPayload(
@@ -245,44 +353,11 @@ class EASource internal constructor() : EASService {
                         password,
                         buildCookieMap(rsaResp, raskeyResp, ldapResp)
                     )
-                    if (token != null) break
+                    if (token != null) break@loop
                 }
-                if (token == null && rsaPublicKeys.isNotEmpty()) {
-                    loop@ for (role in rolecodes) {
-                        for (publicKey in rsaPublicKeys) {
-                            val encrypted = encryptPasswordWithRsa(password, publicKey) ?: continue
-                            val ldapResp = formPost(
-                                session, "/authentication/ldap", basicAuth, rolecode = role,
-                                data = mapOf("username" to username, "password" to encrypted)
-                            )
-                            payload = JsonUtils.getJsonObject(ldapResp.body())
-                            token = buildTokenFromPayload(
-                                payload,
-                                username,
-                                password,
-                                buildCookieMap(rsaResp, raskeyResp, ldapResp)
-                            )
-                            if (token != null) break@loop
-                        }
-                    }
-                }
-                if (token == null) {
-                    res.postValue(
-                        DataState(
-                            DataState.STATE.FETCH_FAILED,
-                            payload?.optString("msg") ?: "登录失败"
-                        )
-                    )
-                    return@Thread
-                }
-
-                res.postValue(DataState(token, DataState.STATE.SUCCESS))
-            } catch (e: Exception) {
-                e.printStackTrace()
-                res.postValue(DataState(DataState.STATE.FETCH_FAILED, e.message))
             }
-        }.start()
-        return res
+        }
+        return token
     }
 
     // ================================================================ 检查登录状态
@@ -454,87 +529,72 @@ class EASource internal constructor() : EASService {
         return res
     }
 
-    // ================================================================ 周课表（使用 querykbrcbyday 按天查询，有完整节次信息）
+    // ================================================================ 周课表（按周矩阵：/app/Kbcx/query）
     override fun getTimetableOfTerm(
         term: TermItem,
         token: EASToken
     ): LiveData<DataState<List<CourseItem>>> {
         val res = MutableLiveData<DataState<List<CourseItem>>>()
         Thread {
-            val result: MutableList<CourseItem> = ArrayList()
             try {
-                // 获取学期开始日期
-                val startDateCal = getStartDateSync(token, term)
-                val startDate = startDateCal.timeInMillis
-                
-                // 获取学期总周数（默认18周）
-                val weekCount = 18
-                val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
-                
-                // 按天查询整个学期
-                for (week in 1..weekCount) {
-                    for (dow in 1..7) {
-                        // 计算日期
-                        val cal = Calendar.getInstance()
-                        cal.timeInMillis = startDate
-                        cal.add(Calendar.WEEK_OF_YEAR, week - 1)
-                        cal.add(Calendar.DAY_OF_WEEK, dow - cal.get(Calendar.DAY_OF_WEEK) + 1)
-                        val dateStr = sdf.format(cal.time)
-                        
-                        // 调用按天查询接口（有完整节次信息）
-                        val resp = authedFormPost(
-                            token, "/app/kbrcbyapp/querykbrcbyday",
-                            mapOf("nyr" to dateStr)
-                        )
-                        val jo = JsonUtils.getJsonObject(resp.body())
-                        val contentArr = jo?.optJSONArray("content") ?: continue
-                        
-                        // 解析当天的课程
-                        for (i in 0 until contentArr.length()) {
-                            val item = contentArr.optJSONObject(i) ?: continue
-                            val kbrcArr = item.optJSONArray("kbrc") ?: continue
-                            val ksjc = item.optInt("KSJC", 0)  // 开始节次
-                            val jsjc = item.optInt("JSJC", 0)  // 结束节次
-                            
-                            for (j in 0 until kbrcArr.length()) {
-                                val kc = kbrcArr.optJSONObject(j) ?: continue
-                                val name = kc.optString("KCMC", "").trim()
-                                if (name.isEmpty()) continue
-                                
-                                val code = CourseCodeUtils.normalize(kc.optString("KCDM")) ?: ""
-                                val classroom = kc.optString("CDMC", "")
-                                
-                                // 合并同课同时间
-                                val existing = result.find {
-                                    it.name == name && it.dow == dow && it.begin == ksjc
-                                }
-                                if (existing != null) {
-                                    if (!existing.weeks.contains(week)) {
-                                        existing.weeks.add(week)
-                                    }
-                                    if (existing.classroom.isNullOrBlank() && classroom.isNotBlank()) {
-                                        existing.classroom = classroom
-                                    }
-                                } else if (dow > 0 && ksjc > 0) {
-                                    val courseItem = CourseItem()
-                                    courseItem.name = name
-                                    courseItem.code = code
-                                    courseItem.dow = dow
-                                    courseItem.begin = ksjc
-                                    courseItem.last = jsjc - ksjc + 1
-                                    courseItem.classroom = classroom
-                                    courseItem.weeks.add(week)
-                                    result.add(courseItem)
-                                }
-                            }
+                val merged = linkedMapOf<String, CourseItem>()
+
+                var emptyWeeks = 0
+                for (week in 1..25) {
+                    val kbBody = """{"xn":"${term.yearCode}","xq":"${term.termCode}","zc":"$week","type":"json"}"""
+                    val kbResp = jsonPost(token, "/app/Kbcx/query", kbBody)
+                    val kbJo = JsonUtils.getJsonObject(kbResp.body()) ?: continue
+                    if (kbJo.optInt("code", -1) != 200) continue
+
+                    val contentArr = kbJo.optJSONArray("content") ?: continue
+                    val kcxxList = extractKcxxListFromKbcxContent(contentArr)
+                    if (kcxxList.length() == 0) {
+                        emptyWeeks += 1
+                        if (week > 8 && emptyWeeks >= 4) break
+                        continue
+                    }
+                    emptyWeeks = 0
+
+                    for (i in 0 until kcxxList.length()) {
+                        val kc = kcxxList.optJSONObject(i) ?: continue
+                        val dow = kc.optInt("XQJ", -1)
+                        val ksjc = kc.optInt("KSJC", -1)
+                        val jsjc = kc.optInt("JSJC", -1)
+                        if (dow !in 1..7 || ksjc <= 0) continue
+
+                        val kbxx = kc.optString("KBXX", "")
+                        val name = extractCourseNameFromKbxx(kbxx)
+                        if (name.isBlank()) continue
+
+                        val rawCode = kc.optString("KCDM", "")
+                        val code = CourseCodeUtils.normalize(rawCode) ?: rawCode
+                        val classroom = extractClassroomFromKbxx(kbxx) ?: ""
+                        val teacher = extractTeacher(kc, name, kbxx)
+                        val last = if (jsjc >= ksjc) jsjc - ksjc + 1 else 1
+
+                        val course = CourseItem().apply {
+                            this.code = code
+                            this.name = name
+                            this.teacher = teacher
+                            this.classroom = classroom
+                            this.dow = dow
+                            this.begin = ksjc
+                            this.last = last
+                            this.weeks = mutableListOf(week)
                         }
+                        upsertCourse(merged, course)
                     }
                 }
-                
-                // 对周次进行排序
-                result.forEach { it.weeks.sort() }
-                
-                res.postValue(DataState(result, DataState.STATE.SUCCESS))
+
+                val result = merged.values.toMutableList()
+                result.forEach { it.weeks = it.weeks.distinct().sorted().toMutableList() }
+                result.sortWith(compareBy<CourseItem> { it.dow }.thenBy { it.begin }.thenBy { it.name })
+
+                if (result.isEmpty()) {
+                    res.postValue(DataState(DataState.STATE.FETCH_FAILED, "未获取到课表数据"))
+                } else {
+                    res.postValue(DataState(result, DataState.STATE.SUCCESS))
+                }
             } catch (e: Exception) {
                 e.printStackTrace()
                 res.postValue(DataState(DataState.STATE.FETCH_FAILED, e.message))
@@ -542,14 +602,41 @@ class EASource internal constructor() : EASService {
         }.start()
         return res
     }
-    
-    /** 同步获取学期开始日期 */
+
+    private fun extractKcxxListFromKbcxContent(contentArr: org.json.JSONArray): org.json.JSONArray {
+        for (i in 0 until contentArr.length()) {
+            val obj = contentArr.optJSONObject(i) ?: continue
+            val arr = obj.optJSONArray("kcxxList") ?: continue
+            return arr
+        }
+        return org.json.JSONArray()
+    }
+
+    private fun extractCourseNameFromKbxx(kbxx: String): String {
+        if (kbxx.isBlank()) return ""
+        return kbxx
+            .lineSequence()
+            .map { it.trim() }
+            .firstOrNull { it.isNotBlank() }
+            .orEmpty()
+    }
+
+    private fun extractClassroomFromKbxx(kbxx: String): String? {
+        if (kbxx.isBlank()) return null
+        val lines = kbxx.split("\n").map { it.trim() }.filter { it.isNotBlank() }
+        val bracket = Regex("\\[([^\\]]+)]")
+        for (line in lines.asReversed()) {
+            val hit = bracket.find(line)?.groupValues?.getOrNull(1)?.trim()
+            if (!hit.isNullOrBlank()) return hit
+        }
+        return null
+    }
+
     @SuppressLint("SimpleDateFormat")
-    private fun getStartDateSync(token: EASToken, term: TermItem): Calendar {
+    private fun getTermStartDateSyncByKbcx(token: EASToken, term: TermItem): Calendar {
         val calendar = Calendar.getInstance()
         calendar.firstDayOfWeek = Calendar.MONDAY
         try {
-            // 用第1周课表矩阵接口获取第1天日期
             val weekBody = """{"xn":"${term.yearCode}","xq":"${term.termCode}","zc":"1","type":"json"}"""
             val weekResp = jsonPost(token, "/app/Kbcx/query", weekBody)
             val weekJo = JsonUtils.getJsonObject(weekResp.body())
@@ -568,18 +655,178 @@ class EASource internal constructor() : EASService {
                     break
                 }
             }
-        } catch (_: Exception) { }
+        } catch (_: Exception) {
+        }
         return calendar
     }
 
-    private fun extractClassroom(kbxx: String): String? {
-        val tokens = Regex("\\[([^\\]]+)]")
-            .findAll(kbxx)
-            .mapNotNull { it.groupValues.getOrNull(1)?.trim() }
+    private fun dayOfWeekFromDate(date: String): Int {
+        return try {
+            val df = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+            val c = Calendar.getInstance()
+            c.time = df.parse(date) ?: return -1
+            val dow = c.get(Calendar.DAY_OF_WEEK)
+            if (dow == Calendar.SUNDAY) 7 else dow - 1
+        } catch (_: Exception) {
+            -1
+        }
+    }
+
+    private fun weekIndexFromDate(termStart: Calendar, date: String): Int {
+        return try {
+            val df = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+            val target = Calendar.getInstance().apply {
+                time = df.parse(date) ?: return -1
+            }
+            val start = Calendar.getInstance().apply {
+                timeInMillis = termStart.timeInMillis
+            }
+            val diffDays = ((target.timeInMillis - start.timeInMillis) / (24L * 60L * 60L * 1000L)).toInt()
+            if (diffDays < 0) -1 else diffDays / 7 + 1
+        } catch (_: Exception) {
+            -1
+        }
+    }
+
+    private fun parseXszykbArray(raw: String): org.json.JSONArray? {
+        if (raw.isBlank()) return null
+        JsonUtils.getJsonArray(raw)?.let { return it }
+        val jo = JsonUtils.getJsonObject(raw) ?: return null
+        val keys = listOf("content", "data", "rows", "list", "result")
+        for (key in keys) {
+            val arr = jo.optJSONArray(key)
+            if (arr != null) return arr
+        }
+        val dataObj = jo.optJSONObject("data")
+        if (dataObj != null) {
+            for (key in keys) {
+                val arr = dataObj.optJSONArray(key)
+                if (arr != null) return arr
+            }
+        }
+        return null
+    }
+
+    private fun upsertCourse(target: MutableMap<String, CourseItem>, incoming: CourseItem) {
+        val key = listOf(
+            incoming.name.orEmpty().trim(),
+            incoming.dow.toString(),
+            incoming.begin.toString(),
+            incoming.last.toString(),
+            incoming.teacher.orEmpty().trim(),
+            incoming.classroom.orEmpty().trim()
+        ).joinToString("|")
+
+        val existing = target[key]
+        if (existing == null) {
+            target[key] = incoming
+            return
+        }
+        for (w in incoming.weeks) {
+            if (!existing.weeks.contains(w)) existing.weeks.add(w)
+        }
+        if (existing.code.isNullOrBlank() && !incoming.code.isNullOrBlank()) {
+            existing.code = incoming.code
+        }
+    }
+
+    private fun parseXszykbCourseRow(row: JSONObject, weekHint: Int?): CourseItem? {
+        val ksjc = row.optInt("KSJC", -1)
+        val jsjc = row.optInt("JSJC", -1)
+        if (ksjc <= 0) return null
+        val key = row.optString("KEY", "")
+        val dow = Regex("xq(\\d+)_", RegexOption.IGNORE_CASE)
+            .find(key)
+            ?.groupValues
+            ?.getOrNull(1)
+            ?.toIntOrNull()
+            ?: -1
+        if (dow !in 1..7) return null
+
+        val sksj = row.optString("SKSJ", "").trim()
+        val name = extractXszykbName(sksj)
+        if (name.isBlank()) return null
+
+        val (teacher, classroom) = extractTeacherAndClassroomFromSksj(sksj)
+        val codeRaw = extractCourseCodeFromRwh(row.optString("RWH", ""))
+        val code = CourseCodeUtils.normalize(codeRaw) ?: codeRaw
+
+        val weeks = parseWeeksFromZc(row.optString("ZC", ""), weekHint)
+        val effectiveJsjc = if (jsjc >= ksjc) jsjc else ksjc
+
+        return CourseItem().apply {
+            this.code = code
+            this.name = name
+            this.teacher = teacher
+            this.classroom = classroom
+            this.dow = dow
+            this.begin = ksjc
+            this.last = (effectiveJsjc - ksjc + 1).coerceAtLeast(1)
+            this.weeks = weeks.toMutableList()
+        }
+    }
+
+    private fun extractXszykbName(sksj: String): String {
+        if (sksj.isBlank()) return ""
+        return sksj
+            .lineSequence()
+            .map { it.trim() }
+            .firstOrNull { it.isNotBlank() }
+            ?.substringBefore("备注:")
+            ?.trim()
+            .orEmpty()
+    }
+
+    private fun extractTeacherAndClassroomFromSksj(sksj: String): Pair<String?, String?> {
+        if (sksj.isBlank()) return Pair(null, null)
+        val bracketParts = Regex("\\[([^\\]]+)]")
+            .findAll(sksj)
+            .map { it.groupValues[1].trim() }
             .filter { it.isNotBlank() }
             .toList()
-        // 教务返回通常把地点放在最后一个方括号里
-        return tokens.lastOrNull()
+
+        var teacher: String? = null
+        var classroom: String? = null
+        for (part in bracketParts) {
+            val isWeekLike = part.contains("周") || part.contains("Week", ignoreCase = true)
+            val isPeriodLike = part.contains("节")
+            if (isWeekLike || isPeriodLike) continue
+            if (classroom == null && looksLikeClassroom(part)) {
+                classroom = part
+                continue
+            }
+            if (teacher == null && !looksLikeClassroom(part)) {
+                teacher = part
+            }
+        }
+        return Pair(teacher, classroom)
+    }
+
+    private fun looksLikeClassroom(text: String): Boolean {
+        if (text.isBlank()) return false
+        if (text.contains("田径场") || text.contains("实验室") || text.contains("教室")) return true
+        if (text.matches(Regex("^[A-Za-z]\\d{2,}.*$"))) return true
+        if (text.matches(Regex("^[TGHKAtghka]?\\d{3,}.*$"))) return true
+        if (text.contains("楼") || text.contains("馆") || text.contains("场")) return true
+        return false
+    }
+
+    private fun extractCourseCodeFromRwh(rwh: String): String {
+        if (rwh.isBlank()) return ""
+        val parts = rwh.split("-")
+        if (parts.size >= 5) return parts[3].trim()
+        return ""
+    }
+
+    private fun parseWeeksFromZc(zc: String, weekHint: Int?): List<Int> {
+        if (zc.isNotBlank()) {
+            val weeks = mutableListOf<Int>()
+            for (i in 1 until zc.length) {
+                if (zc[i] == '1') weeks.add(i)
+            }
+            if (weeks.isNotEmpty()) return weeks
+        }
+        return if (weekHint != null) listOf(weekHint) else emptyList()
     }
 
     private fun extractTeacher(kc: org.json.JSONObject, courseName: String?, kbxx: String): String? {

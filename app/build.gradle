@@ -164,3 +164,10 @@ dependencies {
     // syntax highlight removed (prism4j artifacts not available in current mirrors)
     implementation 'ru.noties:jlatexmath-android:0.2.0'
 }
+
+// Compatibility alias for tooling/scripts that still invoke :app:testClasses (Java plugin task).
+tasks.register('testClasses') {
+    group = 'verification'
+    description = 'Compatibility task alias for legacy invocations; runs debug unit tests.'
+    dependsOn 'testDebugUnitTest'
+}
